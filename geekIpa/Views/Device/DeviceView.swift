@@ -30,8 +30,6 @@ struct DeviceView: View {
 
 	@State private var _devModeAlert = false
 	@State private var _showUDIDSheet = false
-	@State private var _udidInput = ""
-	@State private var _udidError: String?
 
 	var body: some View {
 		List {
@@ -189,7 +187,6 @@ struct DeviceView: View {
 	private func _udidRow() -> some View {
 		HStack {
 			Button {
-				_udidInput = DeviceIdentity.udid ?? ""
 				_showUDIDSheet = true
 			} label: {
 				HStack {
@@ -227,7 +224,6 @@ struct DeviceView: View {
 		UDIDAcquireView()
 	}
 
-	// MARK: - 网络行（状态点）
 }
 
 // MARK: - 设备数据模型
@@ -236,9 +232,6 @@ final class DeviceViewModel: ObservableObject {
 	@Published var deviceName: String = UIDevice.current.name
 	@Published var systemVersion: String = UIDevice.current.systemVersion
 	@Published var modelName: String = "—"
-	@Published var udid: String?
-	@Published var pairingFileExists = false
-	@Published var heartbeatRunning = false
 	@Published var totalBytes: Int64?
 	@Published var freeBytes: Int64?
 
@@ -251,26 +244,16 @@ final class DeviceViewModel: ObservableObject {
 	init() {
 	}
 
-	deinit {
-		_monitor.cancel()
-	}
-
 	/// 加载全部设备数据；任一环节失败保持默认值 / nil，由 UI 显示「—」
 	func load() {
 		DispatchQueue.global(qos: .userInitiated).async {
 			let model = Self.modelName()
-			let udid = GeekDeviceIdentity.udid
-			let pairingExists = GeekDeviceIdentity.exists
-			let heartbeatRunning = HeartbeatManager.shared.heartbeatThread?.isExecuting ?? false
 			let (total, free) = Self.storageSizes()
 			let name = UIDevice.current.name
 			let version = UIDevice.current.systemVersion
 
 			DispatchQueue.main.async {
 				self.modelName = model
-				self.udid = udid
-				self.pairingFileExists = pairingExists
-				self.heartbeatRunning = heartbeatRunning
 				self.totalBytes = total
 				self.freeBytes = free
 				self.deviceName = name
