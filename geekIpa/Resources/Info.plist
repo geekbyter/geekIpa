@@ -4,7 +4,7 @@
 <dict>
 	<key>BGTaskSchedulerPermittedIdentifiers</key>
 	<array>
-		<string>$(PRODUCT_BUNDLE_IDENTIFIER).userTask.*</string>
+		<string>$(PRODUCT_BUNDLE_IDENTIFIER).userTask.refresh</string>
 	</array>
 	<key>CFBundleDocumentTypes</key>
 	<array>

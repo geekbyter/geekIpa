@@ -45,16 +45,54 @@ final class Storage: ObservableObject {
 	
 	
 
+	/// 同步加载持久化存储：
+	/// 1) 正常加载（含轻量迁移）
+	/// 2) 失败 → 清理损坏库后重试
+	/// 3) 仍失败 → 退回内存库，保证 App 一定能启动（不 fatalError）
 	private func _loadPersistentStoreAggressively() {
-		container.loadPersistentStores { description, error in
-			if error != nil {
-				self._destroyStore(at: description.url)
-				self.container.loadPersistentStores { _, error in
-					if let error {
-						fatalError("Core Data unrecoverable: \(error)")
-					}
-				}
-			}
+		let coordinator = container.persistentStoreCoordinator
+		let storeURL = NSPersistentContainer.defaultDirectoryURL()
+			.appendingPathComponent("\(_name).sqlite")
+		let options: [AnyHashable: Any] = [
+			NSMigratePersistentStoresAutomaticallyOption: true,
+			NSInferMappingModelAutomaticallyOption: true
+		]
+
+		do {
+			try coordinator.addPersistentStore(
+				ofType: NSSQLiteStoreType,
+				configurationName: nil,
+				at: storeURL,
+				options: options
+			)
+			return
+		} catch {
+			NSLog("[Storage] 首次加载失败，尝试清理后重试: %@", String(describing: error))
+		}
+
+		_destroyStore(at: storeURL)
+
+		do {
+			try coordinator.addPersistentStore(
+				ofType: NSSQLiteStoreType,
+				configurationName: nil,
+				at: storeURL,
+				options: options
+			)
+			return
+		} catch {
+			NSLog("[Storage] 重试仍失败，回退内存库: %@", String(describing: error))
+		}
+
+		do {
+			try coordinator.addPersistentStore(
+				ofType: NSInMemoryStoreType,
+				configurationName: nil,
+				at: nil,
+				options: nil
+			)
+		} catch {
+			NSLog("[Storage] 内存库也失败（极端情况，不再崩溃）: %@", String(describing: error))
 		}
 	}
 
