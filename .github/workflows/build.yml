@@ -1,0 +1,145 @@
+name: Build geekIpa IPA
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main, master ]
+
+jobs:
+  build:
+    runs-on: macos-15
+    env:
+      SCHEME: geekIpa
+      PROJ: geekIpa.xcodeproj
+      LOG: ${{ github.workspace }}/build.log
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: |
+          XCODE=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)
+          [ -z "$XCODE" ] && XCODE=$(ls -d /Applications/Xcode*.app | sort -V | tail -1)
+          echo "Using $XCODE"
+          sudo xcode-select -s "$XCODE"
+          xcodebuild -version
+
+      - name: Build
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project "$PROJ" \
+            -scheme "$SCHEME" \
+            -configuration Release \
+            -destination "generic/platform=iOS" \
+            -derivedDataPath "$RUNNER_TEMP/dd" \
+            -skipPackagePluginValidation \
+            CODE_SIGNING_ALLOWED=NO \
+            ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES=NO \
+            2>&1 | tee "$LOG"
+
+      - name: Show errors in summary
+        if: failure()
+        run: |
+          {
+            echo "## 编译错误（自动提取）"
+            echo '```'
+            grep -E "error:" "$LOG" | sed -E 's#^/Users/runner/work/[^ ]*/##' | sort -u | head -60
+            echo '```'
+          } >> $GITHUB_STEP_SUMMARY
+
+      - name: Package IPA
+        run: |
+          set -euo pipefail
+
+          echo "=== 定位 .app 产物 ==="
+          APP=""
+          for d in \
+              "$RUNNER_TEMP/dd/Build/Products/Release-iphoneos" \
+              "$GITHUB_WORKSPACE/_build/Applications" \
+              "$GITHUB_WORKSPACE/_build/Release-iphoneos"
+          do
+            echo "检查目录: $d"
+            if [ -d "$d" ]; then
+              CAND=$(find "$d" -maxdepth 1 -type d -name "*.app" | head -1 || true)
+              if [ -n "${CAND:-}" ]; then APP="$CAND"; echo "  -> 命中: $APP"; break; fi
+            fi
+          done
+
+          if [ -z "$APP" ]; then
+            echo "::error::找不到 .app 产物，列出工作区内的 .app："
+            find "$GITHUB_WORKSPACE" -maxdepth 5 -type d -name "*.app" || true
+            exit 1
+          fi
+
+          echo "=== 校验 bundle 完整性 ==="
+          test -f "$APP/Info.plist" || { echo "::error::缺少 Info.plist"; exit 1; }
+          EXE=$(/usr/libexec/PlistBuddy -c "Print CFBundleExecutable" "$APP/Info.plist")
+          echo "可执行文件: $EXE"
+          test -f "$APP/$EXE" || { echo "::error::缺少可执行文件 $APP/$EXE"; exit 1; }
+          EXE_SIZE=$(stat -f%z "$APP/$EXE")
+          echo "可执行文件大小: $EXE_SIZE 字节"
+          if [ "$EXE_SIZE" -lt 1000000 ]; then
+            echo "::error::可执行文件过小（$EXE_SIZE），产物异常"; exit 1
+          fi
+
+          echo "=== 组装 Payload ==="
+          rm -rf Payload packages
+          mkdir -p Payload packages
+          ditto "$APP" "Payload/geekIpa.app"          # ditto 保留符号链接/权限/xattr
+          chmod -R 0755 "Payload/geekIpa.app"
+
+          echo "=== 注入可选 TLS 证书（失败不阻断） ==="
+          if curl -fsSL --max-time 20 https://backloop.dev/pack.json -o /tmp/pack.json 2>/dev/null \
+             && jq -e . /tmp/pack.json >/dev/null 2>&1; then
+            CERT_TXT=$(jq -r '.cert // empty' /tmp/pack.json)
+            KEY_TXT=$(jq -r '[(.key1 // empty), (.key2 // empty)] | join("\n")' /tmp/pack.json)
+            CN_TXT=$(jq -r '.info.domains.commonName // empty' /tmp/pack.json)
+            if [ -n "$CERT_TXT" ] && [ -n "$KEY_TXT" ]; then
+              printf '%s\n' "$CERT_TXT" > "Payload/geekIpa.app/server.crt"
+              printf '%s\n' "$KEY_TXT"  > "Payload/geekIpa.app/server.pem"
+              [ -n "$CN_TXT" ] && printf '%s\n' "$CN_TXT" > "Payload/geekIpa.app/commonName.txt"
+              echo "证书已注入（$(wc -c < "Payload/geekIpa.app/server.crt" | tr -d ' ') 字节）"
+            else
+              echo "::warning::证书内容为空，跳过注入"
+            fi
+          else
+            echo "::warning::证书服务不可达或返回非法 JSON，跳过 TLS 注入"
+          fi
+
+          echo "=== ad-hoc 签名（外部工具会重签） ==="
+          codesign --force --deep --sign - "Payload/geekIpa.app" || echo "::warning::adhoc 签名失败，交由外部工具重签"
+
+          echo "=== 打包 IPA ==="
+          ditto -c -k --sequesterRsrc --keepParent Payload "packages/geekIpa.ipa"
+          ls -lh "packages/geekIpa.ipa"
+
+          echo "=== IPA 内部结构校验 ==="
+          unzip -l "packages/geekIpa.ipa" | head -25
+          unzip -l "packages/geekIpa.ipa" | grep -q "Payload/geekIpa.app/Info.plist" \
+            || { echo "::error::IPA 内缺少 Info.plist"; exit 1; }
+          unzip -l "packages/geekIpa.ipa" | grep -q "Payload/geekIpa.app/$EXE" \
+            || { echo "::error::IPA 内缺少可执行文件"; exit 1; }
+          ZIP_OK=$(unzip -t "packages/geekIpa.ipa" | tail -1)
+          echo "zip 完整性: $ZIP_OK"
+
+          IPA_SIZE=$(stat -f%z "packages/geekIpa.ipa")
+          echo "IPA 大小: $IPA_SIZE 字节"
+          if [ "$IPA_SIZE" -lt 5000000 ]; then
+            echo "::error::IPA 体积异常（$IPA_SIZE 字节），打包失败"; exit 1
+          fi
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: geekIpa-ipa
+          path: packages/geekIpa.ipa
+          retention-days: 30
+
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: build.log
+          retention-days: 7
