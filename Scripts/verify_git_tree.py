@@ -75,7 +75,11 @@ def main() -> int:
         if "Feather.xcdatamodeld" in f or f.endswith("Feather.xcdatamodel/contents")
     ]
     if stale_models:
-        problems.append("旧 Core Data 模型仍在树里：" + ", ".join(stale_models[:3]))
+        dirs = sorted({m.split("/.xccurrentversion")[0].split("/contents")[0]
+                       for m in stale_models})
+        problems.append("旧 Core Data 模型仍在树里：" + ", ".join(dirs))
+        for d in dirs:
+            problems.append(f"  删除命令： git rm -r \"{d}\"")
 
     # 5) 新模型存在
     if not any("geekIpa.xcdatamodeld" in f for f in files):

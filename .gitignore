@@ -8,3 +8,4 @@ cert.json
 _build
 
 debug/
+gcm-diagnose.log
