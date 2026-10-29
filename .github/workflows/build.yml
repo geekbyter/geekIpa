@@ -101,24 +101,6 @@ jobs:
           ditto "$APP" "Payload/geekIpa.app"          # ditto 保留符号链接/权限/xattr
           chmod -R 0755 "Payload/geekIpa.app"
 
-          echo "=== 注入可选 TLS 证书（失败不阻断） ==="
-          if curl -fsSL --max-time 20 https://backloop.dev/pack.json -o /tmp/pack.json 2>/dev/null \
-             && jq -e . /tmp/pack.json >/dev/null 2>&1; then
-            CERT_TXT=$(jq -r '.cert // empty' /tmp/pack.json)
-            KEY_TXT=$(jq -r '[(.key1 // empty), (.key2 // empty)] | join("\n")' /tmp/pack.json)
-            CN_TXT=$(jq -r '.info.domains.commonName // empty' /tmp/pack.json)
-            if [ -n "$CERT_TXT" ] && [ -n "$KEY_TXT" ]; then
-              printf '%s\n' "$CERT_TXT" > "Payload/geekIpa.app/server.crt"
-              printf '%s\n' "$KEY_TXT"  > "Payload/geekIpa.app/server.pem"
-              [ -n "$CN_TXT" ] && printf '%s\n' "$CN_TXT" > "Payload/geekIpa.app/commonName.txt"
-              echo "证书已注入（$(wc -c < "Payload/geekIpa.app/server.crt" | tr -d ' ') 字节）"
-            else
-              echo "::warning::证书内容为空，跳过注入"
-            fi
-          else
-            echo "::warning::证书服务不可达或返回非法 JSON，跳过 TLS 注入"
-          fi
-
           echo "=== ad-hoc 签名（外部工具会重签） ==="
           codesign --force --deep --sign - "Payload/geekIpa.app" || echo "::warning::adhoc 签名失败，交由外部工具重签"
 
@@ -137,7 +119,8 @@ jobs:
 
           IPA_SIZE=$(stat -f%z "packages/geekIpa.ipa")
           echo "IPA 大小: $IPA_SIZE 字节"
-          if [ "$IPA_SIZE" -lt 5000000 ]; then
+          # 本项目是精简 SwiftUI 应用，正常体积约 4MB；阈值只用于拦截「空壳/残缺」产物
+          if [ "$IPA_SIZE" -lt 1000000 ]; then
             echo "::error::IPA 体积异常（$IPA_SIZE 字节），打包失败"; exit 1
           fi
 
