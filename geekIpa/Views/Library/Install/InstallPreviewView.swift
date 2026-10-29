@@ -272,7 +272,8 @@ struct InstallPreviewView: View {
 					break
 				}
 
-				try? await Task.sleep(nanoseconds: 1_000_000) // 1 ms
+				// 500ms 即可反馈安装进度；原 1ms 轮询会持续占用 CPU，安装时像卡死。
+				try? await Task.sleep(nanoseconds: 500_000_000)
 			}
 		}
 	}

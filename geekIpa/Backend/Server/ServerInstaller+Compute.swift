@@ -89,7 +89,17 @@ extension ServerInstaller {
 		"""
 	}
 
-	var installManifest: [String: Any] {[
+	var installManifest: [String: Any] {
+		// 清单元数据必须以实际签出的 IPA 为准：签名页可能修改 Bundle ID / 版本 / 名称，
+		// 若仍使用导入 IPA 的旧值，iOS 会按错误标识安装，安装后也无法正确打开。
+		let bundle = Storage.shared.getAppDirectory(for: app).flatMap(Bundle.init(url:))
+		let identifier = bundle?.bundleIdentifier ?? app.identifier ?? "com.geekipa.unknown"
+		let version = bundle?.infoDictionary?["CFBundleShortVersionString"] as? String ?? app.version ?? "1.0"
+		let name = bundle?.infoDictionary?["CFBundleDisplayName"] as? String
+			?? bundle?.infoDictionary?["CFBundleName"] as? String
+			?? app.name ?? "App"
+
+		return [
 		"items": [[
 			"assets": [
 				[
@@ -106,10 +116,10 @@ extension ServerInstaller {
 				],
 			],
 			"metadata": [
-				"bundle-identifier": app.identifier,
-				"bundle-version": app.version,
+				"bundle-identifier": identifier,
+				"bundle-version": version,
 				"kind": "software",
-				"title": app.name,
+				"title": name,
 			],
 		],],
 	]}

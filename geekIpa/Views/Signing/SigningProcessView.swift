@@ -389,7 +389,9 @@ extension SigningProcessView {
 		let appIcon = self.appIcon
 		let startDate = Date()
 
-		_task = Task.detached {
+		// 主 Actor 上启动：SwiftUI 状态与日志严格在主线程更新。
+		// Zsign 自身在后台线程执行，不在此处阻塞 UI。
+		_task = Task { @MainActor in
 			let handler = SigningHandler(app: app, options: options)
 			handler.appCertificate = certificate
 			handler.appIcon = appIcon
@@ -421,7 +423,15 @@ extension SigningProcessView {
 						self._logger.error("证书已过期，无法用于签名")
 						throw _SigningPrecheckError.certificateExpired
 					}
+					guard
+						let certificateURL = Storage.shared.getFile(.certificate, from: certificate),
+						let provisionURL = Storage.shared.getFile(.provision, from: certificate)
+					else {
+						self._logger.error("证书文件或描述文件缺失，请重新导入证书")
+						throw SigningFileHandlerError.missingCertifcate
+					}
 					self._logger.info("证书校验通过：\(certificate.nickname ?? "未命名证书")")
+					self._logger.info("证书文件：\(certificateURL.lastPathComponent)；描述文件：\(provisionURL.lastPathComponent)")
 				}
 
 				// 阶段：解析 IPA（copy → 生成临时副本）
@@ -433,6 +443,19 @@ extension SigningProcessView {
 				// （modify 内部串联 move / addToDatabase，进度由回调细分）
 				try await handler.modify()
 				try Task.checkCancellation()
+
+				// 成功前验收产物：目录与可执行文件必须存在。
+				// 避免 Zsign 回调成功但文件移动/打包失败时仍向用户报告“签名完成”。
+				guard
+					let outputDirectory = Storage.shared.getAppDirectory(for: app),
+					FileManager.default.fileExists(atPath: outputDirectory.path),
+					let executable = Bundle(url: outputDirectory)?.executableURL,
+					FileManager.default.fileExists(atPath: executable.path)
+				else {
+					self._logger.error("签名产物校验失败：未找到可执行的 .app 包")
+					throw SigningFileHandlerError.appNotFound
+				}
+				self._logger.info("产物校验通过：\(outputDirectory.lastPathComponent)")
 
 				try? await handler.clean()
 

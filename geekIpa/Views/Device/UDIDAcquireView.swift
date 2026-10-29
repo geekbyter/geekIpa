@@ -9,6 +9,7 @@
 
 import SwiftUI
 import UIKit
+import NimbleViews
 
 struct UDIDAcquireView: View {
 
@@ -19,6 +20,7 @@ struct UDIDAcquireView: View {
 	@State private var _errorMessage: String?
 	@State private var _showManualEntry = false
 	@State private var _manualInput = ""
+	@State private var _showProfile = false
 
 	var body: some View {
 		NavigationStack {
@@ -55,7 +57,7 @@ struct UDIDAcquireView: View {
 				} header: {
 					Text("一键获取")
 				} footer: {
-					Text("打开 Safari 下载描述文件 → 到「设置 → 已下载描述文件」安装 → 系统把设备信息回传本机，自动填入 UDID。")
+					Text("在应用内下载描述文件 → 到「设置 → 已下载描述文件」安装 → 系统回传设备信息，自动填入 UDID。返回本页面后点「继续获取」可查看结果。")
 				}
 
 				if _service.receivedSerial != nil || _service.receivedUDID != nil {
@@ -129,6 +131,19 @@ struct UDIDAcquireView: View {
 			.onChange(of: _service.receivedUDID) { newValue in
 				if newValue != nil { GeekToast.show("UDID 已自动填入") }
 			}
+			.fullScreenCover(isPresented: $_showProfile) {
+				NavigationStack {
+					SafariRepresentableView(url: URL(string: "http://127.0.0.1:\(UDIDProfileService.shared.port)/udid.mobileconfig")!)
+						.ignoresSafeArea()
+						.navigationTitle("下载描述文件")
+						.navigationBarTitleDisplayMode(.inline)
+						.toolbar {
+							ToolbarItem(placement: .cancellationAction) {
+								Button("关闭") { _showProfile = false }
+							}
+						}
+				}
+			}
 			.onDisappear {
 				UDIDProfileService.shared.stop()
 			}
@@ -145,7 +160,9 @@ struct UDIDAcquireView: View {
 				UDIDProfileService.shared.beginBackgroundTask()
 				await MainActor.run { _isStarting = false }
 				if let profileURL = URL(string: "http://127.0.0.1:\(UDIDProfileService.shared.port)/udid.mobileconfig") {
-					UIApplication.shared.open(profileURL, options: [:], completionHandler: nil)
+					// 应用内 Safari：不能跳系统 Safari，否则 App 进入后台，监听器挂起，
+					// 127.0.0.1 下载与回传都无法访问。
+					await MainActor.run { _showProfile = true }
 				}
 			} catch {
 				await MainActor.run {
