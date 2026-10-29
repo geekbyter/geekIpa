@@ -34,11 +34,21 @@ struct SigningConfigView: View {
 	@State private var _showReplaceFilesAlert = false
 	@State private var _injectionErrorMessage: String? = nil
 
-	@State private var _showCertPicker = false
-	@State private var _startSigning = false
+	@State private var _navTarget: _NavTarget?
+
+	private enum _NavTarget: Identifiable {
+		case certPicker, signing
+		var id: Int {
+			switch self {
+			case .certPicker: return 0
+			case .signing: return 1
+			}
+		}
+	}
 
 	// 修改图标（问题 1：从本地相册选择并校验）
 	@State private var _iconPickerItem: PhotosPickerItem?
+	@State private var _showIconPickerSheet = false
 	@State private var _iconErrorMessage: String?
 	@State private var _isApplyingIcon = false
 
@@ -150,18 +160,25 @@ struct SigningConfigView: View {
 			)
 			.ignoresSafeArea()
 		}
-		.navigationDestination(isPresented: $_showCertPicker) {
-			CertificatesView(selectedCert: $_temporaryCertificate)
-		}
-		// 开始签名：无二次确认，直接 push 签名过程页（§2.3）
-		.navigationDestination(isPresented: $_startSigning) {
-			SigningProcessView(
-				app: app,
-				options: _temporaryOptions,
-				certificate: _selectedCert(),
-				appIcon: _appIcon,
-				onDismissFlow: { _finishAll() }
-			)
+		// 单个 navigationDestination(item:)：iOS 16 上叠放多个 isPresented 版只有第一个会触发。
+		// 注意：item 绑定在返回后不会自动置 nil，必须在 destination 消失时手动复位，
+		// 否则返回后再次点击同一入口不会重新导航。
+		.navigationDestination(item: $_navTarget) { target in
+			Group {
+				switch target {
+				case .certPicker:
+					CertificatesView(selectedCert: $_temporaryCertificate)
+				case .signing:
+					SigningProcessView(
+						app: app,
+						options: _temporaryOptions,
+						certificate: _selectedCert(),
+						appIcon: _appIcon,
+						onDismissFlow: { _finishAll() }
+					)
+				}
+			}
+			.onDisappear { _navTarget = nil }
 		}
 		.onAppear {
 			// 已有注入文件（高级页加的）时同步开关态
@@ -295,7 +312,7 @@ extension SigningConfigView {
 	private var _signingSection: some View {
 		Section {
 			Button {
-				_showCertPicker = true
+				_navTarget = .certPicker
 			} label: {
 				HStack(spacing: 8) {
 					Text("证书选择")
@@ -417,8 +434,8 @@ extension SigningConfigView {
 
 				Spacer()
 
-				PhotosPicker(selection: $_iconPickerItem, matching: .images) {
-					Text("选择图片")
+				Button("选择图片") {
+					_showIconPickerSheet = true
 				}
 				.buttonStyle(.borderless)
 				.tint(.geekPrimary)
@@ -432,6 +449,9 @@ extension SigningConfigView {
 			Text("要求：正方形，边长 ≥120px（推荐 1024×1024），PNG / JPEG。")
 				.font(.caption2)
 				.foregroundStyle(.tertiary)
+		}
+		.sheet(isPresented: $_showIconPickerSheet) {
+			_PhotosPickerSheet(item: $_iconPickerItem)
 		}
 		.onChange(of: _iconPickerItem) { newItem in
 			guard let newItem else { return }
@@ -691,7 +711,7 @@ extension SigningConfigView {
 			if _selectedCert() == nil {
 				// 未选证书引导，可点击跳证书选择页
 				Button {
-					_showCertPicker = true
+					_navTarget = .certPicker
 				} label: {
 					Text("请先选择证书")
 						.font(.footnote)
@@ -719,7 +739,7 @@ extension SigningConfigView {
 				.frame(minHeight: 44)
 
 				Button {
-					_startSigning = true
+					_navTarget = .signing
 				} label: {
 					Text(_injectionEnabled ? "注入并签名" : "开始签名")
 						.font(.body.weight(.semibold))
@@ -963,5 +983,37 @@ private enum _InjectionFileValidator {
 			return (b0 << 24) | (b1 << 16) | (b2 << 8) | b3
 		}
 		return (b3 << 24) | (b2 << 16) | (b1 << 8) | b0
+	}
+}
+
+// MARK: - 相册选择器（UIViewControllerRepresentable 包装）
+//
+// 避免 SwiftUI PhotosPicker 在 Form/DisclosureGroup 里偶发的主线程卡顿：
+// 直接用 PHPickerViewController，行为与系统 PhotosPicker 一致。
+private struct _PhotosPickerSheet: UIViewControllerRepresentable {
+	@Binding var item: PhotosPickerItem?
+
+	func makeCoordinator() -> Coordinator { Coordinator(item: $item) }
+
+	func makeUIViewController(context: Context) -> PHPickerViewController {
+		var config = PHPickerConfiguration()
+		config.filter = .images
+		config.selectionLimit = 1
+		let vc = PHPickerViewController(configuration: config)
+		vc.delegate = context.coordinator
+		return vc
+	}
+
+	func updateUIViewController(_ uiViewController: PHPickerViewController, context: Context) {}
+
+	final class Coordinator: NSObject, PHPickerViewControllerDelegate {
+		let item: Binding<PhotosPickerItem?>
+		init(item: Binding<PhotosPickerItem?>) { self.item = item }
+
+		func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
+			picker.dismiss(animated: true)
+			guard let provider = results.first?.itemProvider else { return }
+			item.wrappedValue = PhotosPickerItem(itemProvider: provider)
+		}
 	}
 }

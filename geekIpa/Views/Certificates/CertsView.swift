@@ -54,7 +54,6 @@ struct CertsView: View {
 	private var _baseList: some View {
 		List {
 			_listContent
-			_slotSection
 		}
 		.listStyle(.insetGrouped)
 		.navigationTitle("证书")
@@ -136,18 +135,6 @@ struct CertsView: View {
 					_rowButton(for: cert)
 				}
 			}
-		}
-	}
-
-	private var _slotSection: some View {
-		Section {
-			NavigationLink {
-				SlotStatusView()
-			} label: {
-				Label("免费名额管理", systemImage: "rectangle.3.group")
-			}
-		} footer: {
-			Text("使用免费 Apple ID 签名的应用最多同时激活 3 个，可在名额页查看与释放。")
 		}
 	}
 

@@ -137,15 +137,22 @@ struct UDIDAcquireView: View {
 
 	private func _startProfileFlow() {
 		_isStarting = true
-		do {
-			_ = try UDIDProfileService.shared.start()
-			_isStarting = false
-			if let profileURL = URL(string: "http://127.0.0.1:\(UDIDProfileService.shared.port)/udid.mobileconfig") {
-				UIApplication.shared.open(profileURL)
+		Task {
+			do {
+				_ = try await UDIDProfileService.shared.start()
+				// 先申请后台时间，再跳 Safari：否则 App 一进后台监听器就被挂起，
+				// Safari 请求 127.0.0.1 会连接被拒
+				UDIDProfileService.shared.beginBackgroundTask()
+				await MainActor.run { _isStarting = false }
+				if let profileURL = URL(string: "http://127.0.0.1:\(UDIDProfileService.shared.port)/udid.mobileconfig") {
+					UIApplication.shared.open(profileURL)
+				}
+			} catch {
+				await MainActor.run {
+					_isStarting = false
+					_errorMessage = "无法启动本机服务：\(error.localizedDescription)"
+				}
 			}
-		} catch {
-			_isStarting = false
-			_errorMessage = "无法启动本机服务：\(error.localizedDescription)"
 		}
 	}
 }

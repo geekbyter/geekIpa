@@ -12,6 +12,7 @@
 //
 
 import Foundation
+import UIKit
 import SwiftUI
 
 final class UDIDProfileService: ObservableObject {
@@ -32,13 +33,23 @@ final class UDIDProfileService: ObservableObject {
 
 	// MARK: - 启停
 
-	func start() throws -> URL {
+	/// 打开 Safari 后 App 立即进后台，需要后台任务换取存活时间（收到回调或 stop 时结束）
+	private var _backgroundTask: UIBackgroundTaskIdentifier = .invalid
+
+	func start() async throws -> URL {
 		stop()
 
 		let candidatePort = Int.random(in: 4000...8000)
 		let server = LocalHTTPServer(port: candidatePort)
 		_registerRoutes(on: server)
 		try server.start()
+
+		// 回环自检：NWListener 的绑定失败是异步上报的，start() 可能“假成功”。
+		// 这里直接拉一次 / ，拿到任意 HTTP 响应才算真正就绪。
+		guard await Self._probe(port: candidatePort, timeout: 2.0) else {
+			server.stop()
+			throw URLError(.cannotConnectToHost)
+		}
 
 		_server = server
 		port = candidatePort
@@ -51,10 +62,41 @@ final class UDIDProfileService: ObservableObject {
 	}
 
 	func stop() {
+		_endBackgroundTask()
 		guard let server = _server else { return }
 		_server = nil
 		isRunning = false
 		server.stop()
+	}
+
+	// MARK: - 后台任务
+
+	func beginBackgroundTask() {
+		guard _backgroundTask == .invalid else { return }
+		_backgroundTask = UIApplication.shared.beginBackgroundTask(withName: "geekIpa.udid-profile") {
+			self._endBackgroundTask()
+		}
+	}
+
+	private func _endBackgroundTask() {
+		if _backgroundTask != .invalid {
+			UIApplication.shared.endBackgroundTask(_backgroundTask)
+			_backgroundTask = .invalid
+		}
+	}
+
+	// MARK: - 回环自检
+
+	private static func _probe(port: Int, timeout: TimeInterval) async -> Bool {
+		guard let url = URL(string: "http://127.0.0.1:\(port)/") else { return false }
+		var request = URLRequest(url: url)
+		request.timeoutInterval = timeout
+		do {
+			let (_, response) = try await URLSession.shared.data(for: request)
+			return (response as? HTTPURLResponse) != nil
+		} catch {
+			return false
+		}
 	}
 
 	// MARK: - 路由
@@ -78,6 +120,7 @@ final class UDIDProfileService: ObservableObject {
 			case "/udid-callback":
 				let body = String(data: req.body, encoding: .utf8) ?? ""
 				self._handleCallback(body)
+			self._endBackgroundTask()
 				return .html(self._doneHTML())
 
 			default:
