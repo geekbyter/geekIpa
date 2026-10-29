@@ -1,8 +1,9 @@
 //
-//  default.xcconfig
-//  Ventrica
+//  geekIpa.xcconfig
+//  geekIpa
 //
-//  Created by samsam on 2/5/26.
+//  DEPLOYMENT_LOCATION=YES + DSTROOT 让产物固定落在
+//  _build/Applications/geekIpa.app，CI 与 Makefile 都依赖这个路径。
 //
 
 GEEKIPA_PROJECT_VERSION=1.0.0

@@ -9,7 +9,6 @@
 
 import SwiftUI
 import CoreData
-import IDeviceSwift
 import NimbleExtensions
 import UIKit
 

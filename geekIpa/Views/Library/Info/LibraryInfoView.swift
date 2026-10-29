@@ -30,7 +30,14 @@ struct LibraryInfoView: View {
 				
 				Section {
 					Button(.localized("Open in Files"), systemImage: "folder") {
-						UIApplication.open(Storage.shared.getUuidDirectory(for: app)!.toSharedDocumentsURL()!)
+						if
+							let dir = Storage.shared.getUuidDirectory(for: app),
+							let shared = dir.toSharedDocumentsURL()
+						{
+							UIApplication.open(shared)
+						} else {
+							GeekToast.show("应用目录不可用")
+						}
 					}
 				}
 			}
@@ -93,8 +100,9 @@ extension LibraryInfoView {
 	private func _executableSection(for app: AppInfoPresentable) -> some View {
 		NBSection(.localized("Executable")) {
 			NavigationLink(.localized("Entitlements")) {
-				if 
-					let path = Bundle(url: Storage.shared.getAppDirectory(for: app)!)?.executableURL?.path,
+				if
+					let appDir = Storage.shared.getAppDirectory(for: app),
+					let path = Bundle(url: appDir)?.executableURL?.path,
 					let data = LCGetMachOEntitlements(path),
 					let rawDict = (try? PropertyListSerialization.propertyList(
 						from: data,

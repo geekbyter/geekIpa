@@ -7,15 +7,11 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		3305BBAC2DB8944200660D45 /* Vapor in Frameworks */ = {isa = PBXBuildFile; productRef = 3305BBAB2DB8944200660D45 /* Vapor */; };
 		330F68FC2DBF7C8600D8C35D /* NimbleExtensions in Frameworks */ = {isa = PBXBuildFile; productRef = 330F68FB2DBF7C8600D8C35D /* NimbleExtensions */; };
 		330F68FE2DBF7C8600D8C35D /* NimbleViews in Frameworks */ = {isa = PBXBuildFile; productRef = 330F68FD2DBF7C8600D8C35D /* NimbleViews */; };
 		330F69012DC03DF500D8C35D /* NimbleExtensions in Frameworks */ = {isa = PBXBuildFile; productRef = 330F69002DC03DF500D8C35D /* NimbleExtensions */; };
 		330F69032DC03DF500D8C35D /* NimbleViews in Frameworks */ = {isa = PBXBuildFile; productRef = 330F69022DC03DF500D8C35D /* NimbleViews */; };
 		3346F5C22DC329A200C7D508 /* Zsign in Frameworks */ = {isa = PBXBuildFile; productRef = 3346F5C12DC329A200C7D508 /* Zsign */; };
-		3346F83B2DC6C6D100C7D508 /* NukeUI in Frameworks */ = {isa = PBXBuildFile; productRef = 3346F83A2DC6C6D100C7D508 /* NukeUI */; };
-		3346F8492DC6D64800C7D508 /* NimbleJSON in Frameworks */ = {isa = PBXBuildFile; productRef = 3346F8482DC6D64800C7D508 /* NimbleJSON */; };
-		3349E7672DEFB46F00E317ED /* IDeviceSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 3349E7662DEFB46F00E317ED /* IDeviceSwift */; };
 		3371F7322DA9ECDD00281AC6 /* Zip in Frameworks */ = {isa = PBXBuildFile; productRef = 3371F7312DA9ECDD00281AC6 /* Zip */; };
 		33CF13392DB5ACFB0021D4C5 /* SWCompression in Frameworks */ = {isa = PBXBuildFile; productRef = 33CF13382DB5ACFB0021D4C5 /* SWCompression */; };
 		570920BE2F98A4F0008C4A83 /* geekIpa.xcconfig in Resources */ = {isa = PBXBuildFile; fileRef = 570920BD2F98A4F0008C4A83 /* geekIpa.xcconfig */; };
@@ -31,29 +27,17 @@
 		3371F6492DA92A1800281AC6 /* Exceptions for "geekIpa" folder in "geekIpa" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				Resources/ellekit.deb,
 				Resources/Info.plist,
 			);
 			target = 3379C1B82DA869A1004372DA /* geekIpa */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
-/* Begin PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet section */
-		33CF134C2DB5B9BC0021D4C5 /* Exceptions for "geekIpa" folder in "Copy Bundle Resources" phase from "geekIpa" target */ = {
-			isa = PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet;
-			buildPhase = 3379C1B72DA869A1004372DA /* Resources */;
-			membershipExceptions = (
-				Resources/ellekit.deb,
-			);
-		};
-/* End PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet section */
-
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		3379C1BB2DA869A1004372DA /* geekIpa */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
 				3371F6492DA92A1800281AC6 /* Exceptions for "geekIpa" folder in "geekIpa" target */,
-				33CF134C2DB5B9BC0021D4C5 /* Exceptions for "geekIpa" folder in "Copy Bundle Resources" phase from "geekIpa" target */,
 			);
 			path = geekIpa;
 			sourceTree = "<group>";
@@ -69,14 +53,10 @@
 				330F68FE2DBF7C8600D8C35D /* NimbleViews in Frameworks */,
 				330F68FC2DBF7C8600D8C35D /* NimbleExtensions in Frameworks */,
 				3346F5C22DC329A200C7D508 /* Zsign in Frameworks */,
-				3346F8492DC6D64800C7D508 /* NimbleJSON in Frameworks */,
 				330F69012DC03DF500D8C35D /* NimbleExtensions in Frameworks */,
-				3349E7672DEFB46F00E317ED /* IDeviceSwift in Frameworks */,
 				33CF13392DB5ACFB0021D4C5 /* SWCompression in Frameworks */,
 				3371F7322DA9ECDD00281AC6 /* Zip in Frameworks */,
 				330F69032DC03DF500D8C35D /* NimbleViews in Frameworks */,
-				3305BBAC2DB8944200660D45 /* Vapor in Frameworks */,
-				3346F83B2DC6C6D100C7D508 /* NukeUI in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -131,15 +111,11 @@
 				A110A110A110A110A110A111 /* AltSign-Static */,
 				3371F7312DA9ECDD00281AC6 /* Zip */,
 				33CF13382DB5ACFB0021D4C5 /* SWCompression */,
-				3305BBAB2DB8944200660D45 /* Vapor */,
 				330F68FB2DBF7C8600D8C35D /* NimbleExtensions */,
 				330F68FD2DBF7C8600D8C35D /* NimbleViews */,
 				330F69002DC03DF500D8C35D /* NimbleExtensions */,
 				330F69022DC03DF500D8C35D /* NimbleViews */,
 				3346F5C12DC329A200C7D508 /* Zsign */,
-				3346F83A2DC6C6D100C7D508 /* NukeUI */,
-				3346F8482DC6D64800C7D508 /* NimbleJSON */,
-				3349E7662DEFB46F00E317ED /* IDeviceSwift */,
 			);
 			productName = geekIpa;
 			productReference = 3379C1B92DA869A1004372DA /* geekIpa.app */;
@@ -186,10 +162,7 @@
 				3371F5152DA91FDC00281AC6 /* XCLocalSwiftPackageReference "Zsign" */,
 				3371F6F52DA9EBA500281AC6 /* XCRemoteSwiftPackageReference "Zip" */,
 				33CF13372DB5ACFB0021D4C5 /* XCRemoteSwiftPackageReference "SWCompression" */,
-				3305BBAA2DB8944200660D45 /* XCRemoteSwiftPackageReference "vapor" */,
 				330F68FF2DC03DF400D8C35D /* XCLocalSwiftPackageReference "NimbleKit" */,
-				3346F8372DC6C68300C7D508 /* XCRemoteSwiftPackageReference "Nuke" */,
-				3349E7652DEFB46F00E317ED /* XCLocalSwiftPackageReference "IDeviceKitten" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 3379C1BA2DA869A1004372DA /* Products */;
@@ -367,6 +340,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = geekIpa/Resources/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = geekIpa;
+				INFOPLIST_KEY_LSRequiresIPhoneOS = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright (c) 2024 Samara M";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
@@ -431,6 +405,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = geekIpa/Resources/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = geekIpa;
+				INFOPLIST_KEY_LSRequiresIPhoneOS = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright (c) 2024 Samara M";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
@@ -503,10 +478,6 @@
 			isa = XCLocalSwiftPackageReference;
 			relativePath = NimbleKit;
 		};
-		3349E7652DEFB46F00E317ED /* XCLocalSwiftPackageReference "IDeviceKitten" */ = {
-			isa = XCLocalSwiftPackageReference;
-			relativePath = IDeviceKitten;
-		};
 		3371F5152DA91FDC00281AC6 /* XCLocalSwiftPackageReference "Zsign" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = Zsign;
@@ -514,22 +485,6 @@
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		3305BBAA2DB8944200660D45 /* XCRemoteSwiftPackageReference "vapor" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/vapor/vapor";
-			requirement = {
-				kind = exactVersion;
-				version = 4.104.0;
-			};
-		};
-		3346F8372DC6C68300C7D508 /* XCRemoteSwiftPackageReference "Nuke" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/kean/Nuke";
-			requirement = {
-				kind = exactVersion;
-				version = 12.8.0;
-			};
-		};
 		3371F6F52DA9EBA500281AC6 /* XCRemoteSwiftPackageReference "Zip" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/marmelroy/Zip";
@@ -553,11 +508,6 @@
 			isa = XCSwiftPackageProductDependency;
 			productName = "AltSign-Static";
 		};
-		3305BBAB2DB8944200660D45 /* Vapor */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 3305BBAA2DB8944200660D45 /* XCRemoteSwiftPackageReference "vapor" */;
-			productName = Vapor;
-		};
 		330F68FB2DBF7C8600D8C35D /* NimbleExtensions */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = NimbleExtensions;
@@ -577,19 +527,6 @@
 		3346F5C12DC329A200C7D508 /* Zsign */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = Zsign;
-		};
-		3346F83A2DC6C6D100C7D508 /* NukeUI */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 3346F8372DC6C68300C7D508 /* XCRemoteSwiftPackageReference "Nuke" */;
-			productName = NukeUI;
-		};
-		3346F8482DC6D64800C7D508 /* NimbleJSON */ = {
-			isa = XCSwiftPackageProductDependency;
-			productName = NimbleJSON;
-		};
-		3349E7662DEFB46F00E317ED /* IDeviceSwift */ = {
-			isa = XCSwiftPackageProductDependency;
-			productName = IDeviceSwift;
 		};
 		3371F7312DA9ECDD00281AC6 /* Zip */ = {
 			isa = XCSwiftPackageProductDependency;

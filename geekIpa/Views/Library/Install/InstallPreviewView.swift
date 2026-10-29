@@ -7,7 +7,6 @@
 
 import SwiftUI
 import NimbleViews
-import IDeviceSwift
 import OSLog
 import UIKit
 
@@ -16,8 +15,6 @@ struct InstallPreviewView: View {
 	@Environment(\.dismiss) var dismiss
 
 	@AppStorage("geekIpa.useShareSheetForArchiving") private var _useShareSheet: Bool = false
-	@AppStorage("geekIpa.installationMethod") private var _installationMethod: Int = 0
-	@AppStorage("geekIpa.serverMethod") private var _serverMethod: Int = 0
 	@State private var _isWebviewPresenting = false
 	@State private var progressTask: Task<Void, Never>?
 	/// 安装失败文案（用 SwiftUI alert 呈现，保证在 sheet 内一定可见）
@@ -37,7 +34,7 @@ struct InstallPreviewView: View {
 		self.isSharing = isSharing
 		let viewModel = InstallerStatusViewModel(isIdevice: false)
 		self._viewModel = StateObject(wrappedValue: viewModel)
-		self._installer = StateObject(wrappedValue: try! ServerInstaller(app: app, viewModel: viewModel))
+		self._installer = StateObject(wrappedValue: ServerInstaller(app: app, viewModel: viewModel))
 	}
 	
 	// MARK: Body
@@ -99,14 +96,14 @@ struct InstallPreviewView: View {
 					Task { await _selfCheckThenOpen() }
 				}
 				
-				if case .sendingPayload = newStatus, _serverMethod == 1 {
+				if case .sendingPayload = newStatus, _isWebviewPresenting {
 					_isWebviewPresenting = false
 				}
 				
 				if case .installing = newStatus {
 					if progressTask == nil {
 						progressTask = startInstallProgressPolling(
-							bundleID: app.identifier!,
+							bundleID: app.identifier ?? "",
 							viewModel: viewModel
 						)
 					}
@@ -175,9 +172,9 @@ struct InstallPreviewView: View {
 		}
 				
 		// itms 通道依赖设备本地网络地址（en0）：蜂窝网络下取不到，安装必然失败。
-		// 与 NB 助手一致：直接提示用户连 WiFi 或改用无需网络的配对通道。
+		// 蜂窝网络下取不到本地 IP，直接引导用户连接 Wi-Fi。
 		if _method == 0 && ServerInstaller.getLocalAddress() == nil {
-			_errorMessage = "当前没有可用的 Wi-Fi 网络地址，本地安装服务无法工作。\n\n请任选其一：\n① 连接 Wi-Fi 后重试（也可先开飞行模式再开 Wi-Fi）；\n② 在「设置 → 安装方式」导入配对文件，使用无需网络的安装通道。"
+			_errorMessage = "当前没有可用的 Wi-Fi 网络地址，本地安装服务无法工作。\n\n请任选其一：\n① 连接 Wi-Fi 后重试（也可先开飞行模式再开 Wi-Fi）；\n② 确认该 Wi-Fi 可以正常上网（iOS 安装需要设备自身网络可用）。"
 			return
 		}
 
@@ -203,7 +200,7 @@ struct InstallPreviewView: View {
 						
 						if case .installing = await viewModel.status {
 							let task = await startInstallProgressPolling(
-								bundleID: app.identifier!,
+								bundleID: app.identifier ?? "",
 								viewModel: viewModel
 							)
 
@@ -211,11 +208,7 @@ struct InstallPreviewView: View {
 								progressTask = task
 							}
 						}
-					} else if await _method == 1 {
-						logger.info("安装", "本机直装…")
-						let handler = await InstallationProxy(viewModel: viewModel)
-						try await handler.install(at: packageUrl, suspend: app.identifier == Bundle.main.bundleIdentifier!)
-						logger.success("安装", "installation proxy 调用完成")
+
 					}
 				} else {
 					let package = try await handler.moveToArchive(packageUrl, shouldOpen: !_useShareSheet)
@@ -239,7 +232,7 @@ struct InstallPreviewView: View {
 
 				await MainActor.run {
 					// 失败必须显眼提示（问题 3）：标题 + 原始错误 + 排查建议
-					_errorMessage = "\(String(describing: error))\n\n可尝试：①到「设置 → 安装方式」切换安装通道；②确认配对文件已导入。"
+					_errorMessage = "\(String(describing: error))\n\n可尝试：①确认已连接 Wi-Fi；②到「设置」查看诊断日志中的具体失败步骤。"
 					viewModel.status = .broken(error)
 				}
 			}
@@ -298,16 +291,16 @@ extension InstallPreviewView {
 		let check = await installer.selfCheck()
 		if !check.ok {
 			logger.error("自检", "链路自检未通过：\(check.detail)。仍可尝试继续，但大概率失败")
-			logger.warning("自检", "建议：到 设置→安装方式 切换安装通道后重试")
+			logger.warning("自检", "建议：确认已连接 Wi-Fi，并查看诊断日志中的失败步骤")
 		}
 		await MainActor.run {
-			if _serverMethod == 0 {
-				logger.info("安装", "打开 itms-services 链接，等待系统弹出安装确认…")
-				UIApplication.shared.open(URL(string: installer.iTunesLink)!)
-				_startManifestWatchdog()
-			} else if _serverMethod == 1 {
-				_isWebviewPresenting = true
+			logger.info("安装", "打开 itms-services 链接，等待系统弹出安装确认…")
+			if let link = URL(string: installer.iTunesLink) {
+				UIApplication.shared.open(link)
+			} else {
+				logger.error("安装", "安装链接无效，无法打开系统安装确认")
 			}
+			_startManifestWatchdog()
 		}
 	}
 
@@ -326,8 +319,8 @@ extension InstallPreviewView {
 			let status = await MainActor.run { viewModel.status }
 			if case .ready = status {
 				logger.error("看门狗", "12 秒内 iOS 没有来取安装清单——安装确认弹窗可能被系统拒绝")
-				logger.error("看门狗", "常见原因：①TLS 证书失效 ②系统 itms 服务拒绝本机地址 ③签名不合法")
-				logger.warning("看门狗", "请截图日志页反馈，或到 设置→安装方式 换通道重试")
+				logger.error("看门狗", "常见原因：①未连接 Wi-Fi ②未允许「本地网络」权限 ③签名或描述文件不匹配")
+				logger.warning("看门狗", "排查顺序：确认 Wi-Fi 已连接 → 设置→隐私与安全性→本地网络 允许本 App → 重试安装")
 			}
 		}
 	}

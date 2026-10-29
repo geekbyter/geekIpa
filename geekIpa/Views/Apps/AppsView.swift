@@ -3,7 +3,9 @@
 //  geekIpa
 //
 //  应用页容器（规格书 §1.2 / §2）：
-//  顶部 UISegmentedControl 风格两段（已导入 / 已签名）+
+//  顶部 UISegmentedControl 风格两段（已导入 / 已签名），不含「已安装」：
+//  枚举本机已安装应用需要私有 API 或配对通道，本项目已移除该能力，
+//  已安装应用请从系统桌面/设置管理。
 //  导航栏右侧常驻实心胶囊「导入 IPA」（文件导入 / URL 导入）。
 //  由 VariedTabbarView 包进 NavigationStack 使用。
 //
@@ -14,7 +16,7 @@ import UniformTypeIdentifiers
 import NimbleViews
 
 struct AppsView: View {
-	/// 顶部三个分段（规格书 §1.2）
+	/// 顶部两个分段（已导入 / 已签名）
 	enum Banner: Int, CaseIterable, Hashable {
 		case imported
 		case signed

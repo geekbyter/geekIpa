@@ -9,7 +9,6 @@ import Foundation
 import UIKit.UIApplication
 import Zip
 import SwiftUI
-import IDeviceSwift
 
 final class ArchiveHandler: NSObject {
 	@ObservedObject var viewModel: InstallerStatusViewModel
@@ -70,7 +69,7 @@ final class ArchiveHandler: NSObject {
 	}
 	
 	func moveToArchive(_ package: URL, shouldOpen: Bool = false) async throws -> URL? {
-		let appendingString = "\(_app.name!)_\(_app.version!)_\(Int(Date().timeIntervalSince1970)).ipa"
+		let appendingString = "\(_app.name ?? "app")_\(_app.version ?? "0")_\(Int(Date().timeIntervalSince1970)).ipa"
 		let dest = _fileManager.archives.appendingPathComponent(appendingString)
 		
 		try? _fileManager.moveItem(
@@ -78,9 +77,9 @@ final class ArchiveHandler: NSObject {
 			to: dest
 		)
 		
-		if shouldOpen {
+		if shouldOpen, let sharedURL = FileManager.default.archives.toSharedDocumentsURL() {
 			await MainActor.run {
-				UIApplication.open(FileManager.default.archives.toSharedDocumentsURL()!)
+				UIApplication.open(sharedURL)
 			}
 		}
 		

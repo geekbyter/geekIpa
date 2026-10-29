@@ -20,18 +20,57 @@ FAILURES: list[str] = []
 
 
 def fail(msg: str) -> None:
-    FAILURES.append(msg)
+    tip = hint_for(msg)
+    FAILURES.append(msg + (f"\n       修复: {tip}" if tip else ""))
 
 
 def ok(msg: str) -> None:
     print(f"  OK   {msg}")
 
 
+# 失败时附带的修复提示（按检查名关键词匹配）
+HINTS = [
+    ("required file exists", "补齐该文件，或从 git 恢复：git checkout -- <path>"),
+    ("local package has Package.swift", "本地包目录缺失：git checkout -- <pkg>/ 或确认未被误删"),
+    ("local package path exists", "pbxproj 引用了不存在的包目录：删除该 XCLocalSwiftPackageReference"),
+    ("workspace ref exists", "workspace 引用了已删除路径：编辑 geekIpa.xcworkspace/contents.xcworkspacedata 删掉该 FileRef"),
+    ("sync group dir exists", "同步组路径不存在：确认 PBXFileSystemSynchronizedRootGroup 的 path 与磁盘一致"),
+    ("braces balanced", "pbxproj 结构被破坏：从 git 恢复 project.pbxproj 重新编辑"),
+    ("parentheses balanced", "同上"),
+    ("INFOPLIST_FILE", "工程里的 INFOPLIST_FILE 指向不存在的文件：核对 geekIpa/Resources/Info.plist 路径"),
+    ("CODE_SIGN_ENTITLEMENTS", "entitlements 路径不存在：核对 Supporting Files/geekIpa.entitlements"),
+    ("SWIFT_OBJC_BRIDGING_HEADER", "桥接头路径不存在：核对 Supporting Files/geekIpa-Bridging-Header.h"),
+    ("xcdatamodeld", "模型目录必须与 NSPersistentContainer(name:) 同名；旧目录要从磁盘和 git 一起删"),
+    ("Core Data model name", "把 Storage.swift 的 _name 与 .xcdatamodeld 目录名改成一致"),
+    ("BGTaskScheduler", "Info.plist 的 BGTaskSchedulerPermittedIdentifiers 必须是精确标识符，不能含 *"),
+    ("NSLocalNetworkUsageDescription", "补 Info.plist: NSLocalNetworkUsageDescription（安装服务器需要本地网络）"),
+    ("ATS allows local networking", "补 Info.plist: NSAppTransportSecurity → NSAllowsLocalNetworking = true"),
+    ("get-task-allow", "生产包不应带调试权限：entitlements 里删掉 get-task-allow"),
+    ("removed package", "该依赖已改为自研/移除：不要把 import 或 package 引用加回来"),
+    ("LocalHTTPServer", "自研 HTTP 服务缺失：恢复 geekIpa/Backend/Server/LocalHTTPServer.swift"),
+    ("@main", "必须且只能有一个 @main 入口"),
+    ("init(hex:)", "Color(hex:) 只能有一处定义（Extensions/Color+Hex.swift）"),
+    ("Section argument order", "Section 的内容闭包必须在最前：Section { } header: { } footer: { }"),
+    ("fatalError", "生产代码禁止 fatalError，请改为降级处理"),
+]
+
+
+def hint_for(name: str) -> str:
+    for key, tip in HINTS:
+        if key in name:
+            return tip
+    return ""
+
+
 def check(name: str, condition: bool, detail: str = "") -> None:
     if condition:
         ok(name)
     else:
-        fail(f"{name}" + (f" — {detail}" if detail else ""))
+        msg = name + (f" — {detail}" if detail else "")
+        tip = hint_for(name)
+        if tip:
+            msg += f"\n       修复: {tip}"
+        fail(msg)
 
 
 def require_file(rel: str) -> None:
@@ -58,9 +97,30 @@ def main() -> int:
     ]:
         require_file(rel)
 
-    # ---- Local Swift packages ----
-    for pkg in ["AltSign", "Zsign", "NimbleKit", "IDeviceKitten"]:
+    # ---- Local Swift packages（IDeviceKitten 已移除，不再要求）----
+    for pkg in ["AltSign", "Zsign", "NimbleKit"]:
         check(f"local package has Package.swift: {pkg}", (ROOT / pkg / "Package.swift").exists())
+
+    pbx_path = ROOT / "geekIpa.xcodeproj" / "project.pbxproj"
+    pbx = read(pbx_path)
+
+    # ---- 本地包引用必须指向真实存在的目录 ----
+    for m in re.finditer(r'XCLocalSwiftPackageReference[^}]*?relativePath = ([^;]+);', pbx, re.S):
+        rel = m.group(1).strip().strip('"')
+        check(f"local package path exists: {rel}", (ROOT / rel).is_dir())
+
+    # ---- workspace 不得引用不存在的路径 ----
+    ws_path = ROOT / "geekIpa.xcworkspace" / "contents.xcworkspacedata"
+    if ws_path.exists():
+        ws = read(ws_path)
+        for m in re.finditer(r'location = "(?:group|container):([^"]+)"', ws):
+            name = m.group(1)
+            check(f"workspace ref exists: {name}", (ROOT / name).exists())
+
+    # ---- 同步组目录存在 ----
+    for m in re.finditer(r'PBXFileSystemSynchronizedRootGroup[^}]*?path = ([^;]+);', pbx, re.S):
+        rel = m.group(1).strip().strip('"')
+        check(f"sync group dir exists: {rel}", (ROOT / rel).is_dir())
 
     # ---- pbxproj structural sanity + referenced paths ----
     pbx_path = ROOT / "geekIpa.xcodeproj" / "project.pbxproj"
@@ -85,35 +145,93 @@ def main() -> int:
                   (ROOT / rel).exists(), rel)
 
     # ---- Core Data model must match NSPersistentContainer name ----
-    models = sorted(APP.glob("Backend/Storage/*.xcdatamodeld"))
-    check("exactly one .xcdatamodeld bundle", len(models) == 1,
-          ", ".join(str(m.relative_to(ROOT)) for m in models))
+    # 全仓库递归查找：残留的重复模型会让 Xcode 产出两份 momd
+    models = sorted(
+        p for p in ROOT.rglob("*.xcdatamodeld")
+        if "debug" not in p.relative_to(ROOT).parts
+        and not any(part.startswith(".") for part in p.relative_to(ROOT).parts)
+    )
 
     storage_path = APP / "Backend" / "Storage" / "Storage.swift"
+    expected_model = None
     if storage_path.exists():
         storage = read(storage_path)
         m = re.search(r'_name:\s*String\s*=\s*"([^"]+)"', storage)
         if not m:
             fail("Storage.swift does not declare a model name")
         else:
-            expected = f"{m.group(1)}.xcdatamodeld"
-            check(f"Core Data model name matches container ({expected})",
-                  models and models[0].name == expected,
-                  f"found {models[0].name if models else 'none'}")
-            # .xccurrentversion must point to an existing inner model
-            for modeld in models:
-                xc = modeld / ".xccurrentversion"
-                if xc.exists():
-                    cur = read(xc)
-                    inner = re.search(r"<string>([^<]+\.xcdatamodel)</string>", cur)
-                    if inner:
-                        check(".xccurrentversion points to an existing model",
-                              (modeld / inner.group(1) / "contents").exists(),
-                              inner.group(1))
-                # Each model dir should have a contents file
-                for inner_dir in modeld.glob("*.xcdatamodel"):
-                    check(f"model contents exists: {inner_dir.name}",
+            expected_model = f"{m.group(1)}.xcdatamodeld"
+
+    if expected_model is not None:
+        stale = [md for md in models if md.name != expected_model]
+        if len(models) > 1:
+            fail(
+                "duplicated Core Data model bundles: "
+                + ", ".join(md.name for md in models)
+                + f". Keep only {expected_model} (matches NSPersistentContainer(name:)). "
+                "Remove the stale copies from disk AND from git, e.g.: "
+                + " ".join(f"git rm -r --cached --ignore-unmatch '{md.relative_to(ROOT).as_posix()}'"
+                           for md in stale)
+            )
+        else:
+            check("exactly one .xcdatamodeld bundle", len(models) == 1,
+                  ", ".join(md.name for md in models))
+
+        matching = [md for md in models if md.name == expected_model]
+        check(f"Core Data model name matches container ({expected_model})",
+              bool(matching),
+              "found " + (", ".join(md.name for md in models) if models else "none"))
+
+        # .xccurrentversion must point to an existing inner model
+        for modeld in models:
+            xc = modeld / ".xccurrentversion"
+            if xc.exists():
+                cur = read(xc)
+                inner = re.search(r"<string>([^<]+\.xcdatamodel)</string>", cur)
+                if inner:
+                    check(".xccurrentversion points to an existing model",
+                          (modeld / inner.group(1) / "contents").exists(),
+                          inner.group(1))
+            # Each model dir should have a contents file
+            for inner_dir in modeld.glob("*.xcdatamodel"):
+                check(f"model contents exists: {inner_dir.name}",
                           (inner_dir / "contents").exists())
+
+    # ---- 资源必须真的进 App 包 ----
+    # ellekit.deb 由 TweakHandler 在运行时从 Bundle.main 读取，
+    # 若被同步组排除（membershipExceptions），插件注入会静默失效。
+    for m in re.finditer(r"membershipExceptions = \(([\s\S]*?)\);", pbx):
+        entries = [e.strip().rstrip(',') for e in m.group(1).splitlines() if e.strip()]
+        for need in ["Resources/ellekit.deb"]:
+            check(f"{need} 未被排除出 App 包", need not in entries,
+                  "被 membershipExceptions 排除，运行时 Bundle.main 取不到")
+
+    # ---- 代码引用的 Bundle 资源必须存在且未被排除 ----
+    swift_files = list(APP.rglob("*.swift"))
+    excluded_entries = set()
+    for m in re.finditer(r"membershipExceptions = \(([\s\S]*?)\);", pbx):
+        for line in m.group(1).splitlines():
+            entry = line.strip().rstrip(",")
+            if entry:
+                excluded_entries.add(entry)
+
+    resource_refs = set()
+    for path in swift_files:
+        text = read(path)
+        for m in re.finditer(r'url\(forResource:\s*"([^"]+)"\s*,\s*withExtension:\s*"([^"]*)"', text):
+            name, ext = m.group(1), m.group(2)
+            resource_refs.add((f"{name}.{ext}" if ext else name, path))
+        for m in re.finditer(r'url\(forResource:\s*"([^"]+)"\s*,\s*withExtension:\s*nil\)', text):
+            resource_refs.add((m.group(1), path))
+
+    for fname, path in sorted(resource_refs):
+        hits = [p for p in APP.rglob(fname)]
+        where = path.relative_to(ROOT).as_posix()
+        check(f"Bundle 资源存在: {fname}", bool(hits), f"{where} 引用了它")
+        if hits:
+            rel = hits[0].relative_to(APP).as_posix()
+            check(f"Bundle 资源未被排除: {fname}", rel not in excluded_entries,
+                  f"被 membershipExceptions 排除，运行时取不到")
 
     # ---- Info.plist + entitlements ----
     plist_path = APP / "Resources" / "Info.plist"
@@ -123,6 +241,13 @@ def main() -> int:
         bg = plist.get("BGTaskSchedulerPermittedIdentifiers", [])
         check("BGTaskScheduler identifiers are not wildcards",
               all(not str(i).endswith(".*") for i in bg), str(bg))
+
+        # 安装链路依赖局域网 HTTP：缺这两项 iOS 会拦掉
+        check("Info.plist has NSLocalNetworkUsageDescription",
+              bool(plist.get("NSLocalNetworkUsageDescription")))
+        ats = plist.get("NSAppTransportSecurity") or {}
+        check("ATS allows local networking (http://<LAN-IP>)",
+              bool(ats.get("NSAllowsLocalNetworking")))
     except Exception as exc:  # noqa: BLE001
         fail(f"Info.plist cannot be parsed: {exc}")
 
@@ -133,8 +258,19 @@ def main() -> int:
         check("entitlements do not contain get-task-allow=true",
               not re.search(r"<key>get-task-allow</key>\s*<true\s*/>", ent))
 
-    # ---- Swift source sanity ----
+    # ---- 依赖收敛：这些包已自主实现/移除，禁止回退 ----
     swift_files = list(APP.rglob("*.swift"))
+    for banned in ["Vapor", "vapor", "Nuke", "NukeUI", "AltSourceKit", "IDeviceSwift", "IDeviceKitten"]:
+        if banned in pbx:
+            fail(f"project.pbxproj still references removed package: {banned}")
+    for banned_import in ["import Vapor", "import NIOSSL", "import NIOTLS", "import Nuke", "import AltSourceKit", "import IDeviceSwift"]:
+        for path in swift_files:
+            if banned_import in read(path):
+                fail(f"{banned_import} found in {path.relative_to(ROOT).as_posix()}")
+    check("LocalHTTPServer.swift exists (self-implemented HTTP)",
+          (APP / "Backend" / "Server" / "LocalHTTPServer.swift").exists())
+
+    # ---- Swift source sanity ----
     check("Swift sources present", len(swift_files) > 0, str(len(swift_files)))
 
     mains = []

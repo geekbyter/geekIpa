@@ -16,8 +16,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Verify repository tree
+        run: |
+          # 仓库里必须真的是新工程树（geekIpa/），而不是遗留的 GeekSign/
+          PY=$(command -v python3 || command -v python)
+          "$PY" Scripts/verify_git_tree.py
+
       - name: Preflight
-        run: python3 Scripts/preflight.py
+        run: |
+          PY=$(command -v python3 || command -v python)
+          echo "使用解释器: $PY"
+          "$PY" Scripts/preflight.py
 
       - name: Select Xcode
         run: |

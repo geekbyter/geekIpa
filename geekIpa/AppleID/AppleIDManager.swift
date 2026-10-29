@@ -6,7 +6,7 @@
 //  - GSA 登录（verificationHandler 双重认证回调包装为 async 提供者）
 //  - 凭据/会话持久化：密码与 dsid/authToken 存 Keychain（仅当用户勾选「记住凭据」才存密码）；
 //    authToken 过期后用已存密码静默重登录，无法静默重登则抛出「需要重新登录」错误
-//  - 从配对文件（Documents/pairingFile.plist，与 HeartbeatManager 一致）读取设备真实 UDID
+//  - 读取用户在「设备」页录入的设备 UDID（DeviceIdentity）
 //    并注册到 Apple 开发者后台（不使用 identifierForVendor）
 //  - 开发证书复用/创建：私钥与 CSR 由 AltSign 的 ALTCertificateRequest 在 addCertificate 内部
 //    经 SwiftBridge.CertificatesManager 生成；p12 由 ALTCertificate.encryptedP12Data 导出
@@ -24,7 +24,6 @@ import Combine
 import Security
 import UIKit
 import AltSign
-import IDeviceSwift
 
 // MARK: - 错误
 
@@ -42,7 +41,7 @@ enum AppleIDError: LocalizedError {
 	case anisetteUnavailable
 	/// 未录入设备 UDID
 	case udidNotConfigured
-	/// 配对文件中没有设备 UDID
+	/// 设备 UDID 缺失或无效
 	case deviceUDIDMissing
 	/// 证书名额已满，且现有证书本地在用，未自动撤销
 	case certificateLimitReached
@@ -574,7 +573,7 @@ final class AppleIDManager: ObservableObject {
 				}
 				let now = Date()
 				let active = owned.first(where: { $0.expiryDate > now }) ?? owned.first
-				let expiry: Date? = (active != nil && active!.expiryDate > .distantPast) ? active!.expiryDate : nil
+				let expiry: Date? = (active?.expiryDate ?? .distantPast) > .distantPast ? active?.expiryDate : nil
 				if let expiry {
 					UserDefaults.standard.set(expiry, forKey: Self.defaultsCertExpiry)
 				}

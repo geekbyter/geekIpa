@@ -8,8 +8,6 @@
 import Foundation.NSURL
 import UIKit.UIImage
 import ZsignC
-import NimbleJSON
-import IDeviceSwift
 
 enum FR {
 	static func handlePackageFile(

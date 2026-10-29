@@ -69,9 +69,8 @@ final class SigningHandler: NSObject {
 		}
 		
 		guard
-			let infoDictionary = NSDictionary(
-				contentsOf: movedAppPath.appendingPathComponent("Info.plist")
-			)!.mutableCopy() as? NSMutableDictionary
+			let rawInfo = NSDictionary(contentsOf: movedAppPath.appendingPathComponent("Info.plist")),
+			let infoDictionary = rawInfo.mutableCopy() as? NSMutableDictionary
 		else {
 			stageLogger?("ERROR", "Info.plist 解析失败")
 			throw SigningFileHandlerError.infoPlistNotFound

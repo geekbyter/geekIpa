@@ -314,18 +314,30 @@ extension SigningConfigView {
 						.foregroundStyle(.tertiary)
 				}
 			}
+
+			// Apple ID 免费签名：登录 → 注册设备/App ID → 拉描述文件 → 证书写入证书库。
+			// 这里只「准备证书」，真正的签名仍走下方的主按钮，避免重复签名。
+			AppleIDSignButton(
+				app: nil,
+				bundleID: _temporaryOptions.appIdentifier ?? app.identifier ?? "",
+				name: _temporaryOptions.appName ?? app.name ?? "App",
+				options: _temporaryOptions
+			)
 		} header: {
 			Text("签名设置")
 		} footer: {
 			if let cert = _selectedCert(), cert.revoked {
 				Text("当前证书已被吊销，签名可能失败")
 					.foregroundStyle(Color.geekWarning)
+			} else {
+				Text("没有证书时可用 Apple ID 生成免费证书（7 天有效，占 3 个 App ID 名额之一）。")
 			}
 		}
 	}
 
-	/// 高级区（问题 1 修复）：
-	/// 仅保留已实现且可用的「修改图标」；其余 Feather 遗留入口统一标注为下个版本，避免点了没反应。
+	/// 高级区：顺序固定为 签名选项 → 修改图标 → 移除插件 → 注入插件，
+	/// 危险操作（移除插件 / 注入插件）统一放最后并默认关闭；
+	/// 未实现的 Feather 遗留入口以「下个版本」明确标注，避免点了没反应。
 	@ViewBuilder
 	private var _advancedSection: some View {
 		Section {

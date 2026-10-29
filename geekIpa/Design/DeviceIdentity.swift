@@ -11,12 +11,23 @@ import Foundation
 
 enum DeviceIdentity {
 
-	private static let _key = "geekipa.device.udid"
+	private static let _key = "geekIpa.device.udid"
+	/// 历史键（曾用小写 geekipa 前缀）：只读用于迁移，不再写入
+	private static let _legacyKey = "geekipa.device.udid"
 
 	/// 已录入的 UDID（未录入或格式非法时为 nil）
 	static var udid: String? {
-		guard let raw = UserDefaults.standard.string(forKey: _key) else { return nil }
-		return normalized(raw)
+		if let raw = UserDefaults.standard.string(forKey: _key) {
+			return normalized(raw)
+		}
+		// 迁移旧键，避免名下设备升级后已录入的 UDID 丢失
+		if let legacy = UserDefaults.standard.string(forKey: _legacyKey),
+		   let migrated = normalized(legacy) {
+			UserDefaults.standard.set(migrated, forKey: _key)
+			UserDefaults.standard.removeObject(forKey: _legacyKey)
+			return migrated
+		}
+		return nil
 	}
 
 	/// 是否已录入可用 UDID
@@ -26,11 +37,13 @@ enum DeviceIdentity {
 	static func save(_ raw: String) -> Bool {
 		guard let normalizedValue = normalized(raw) else { return false }
 		UserDefaults.standard.set(normalizedValue, forKey: _key)
+		UserDefaults.standard.removeObject(forKey: _legacyKey)
 		return true
 	}
 
 	static func clear() {
 		UserDefaults.standard.removeObject(forKey: _key)
+		UserDefaults.standard.removeObject(forKey: _legacyKey)
 	}
 
 	/// 校验并规范化：支持 40 位十六进制（旧机型）与 25 位带连字符（iPhone X 及以后，去掉连字符后 24 位）

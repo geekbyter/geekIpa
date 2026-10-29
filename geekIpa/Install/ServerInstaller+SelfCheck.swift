@@ -6,7 +6,7 @@
 //  itms-services 把清单 URL 交给系统后，iOS 失败时**不会**给 App 任何回调——
 //  所以我们在打开 itms 链接之前，先用 URLSession 自己拉一遍清单：
 //  - 拉得动：TLS/端口/路径全部正常，安装大概率成功
-//  - 拉不动：立刻把错误（TLS 证书失效/连接被拒/超时）打到日志，用户当场能看到原因
+//  - 拉不动：立刻把错误（连接被拒/超时/权限被拒）打到日志，用户当场能看到原因
 //
 
 import Foundation
@@ -60,11 +60,11 @@ extension ServerInstaller {
 			if nsError.domain == NSURLErrorDomain {
 				switch nsError.code {
 				case NSURLErrorServerCertificateUntrusted, NSURLErrorSecureConnectionFailed:
-					logger.error("自检", "诊断：TLS 证书不受信任——请确认已连接 Wi-Fi，并在设置中检查安装服务证书")
+					logger.error("自检", "诊断：连接被系统拒绝——请确认已连接 Wi-Fi，并允许本 App 访问「本地网络」权限（设置 → 隐私与安全性 → 本地网络）")
 				case NSURLErrorCannotConnectToHost, NSURLErrorNetworkConnectionLost:
-					logger.error("自检", "诊断：无法连接本机服务器——端口 \(port) 可能被系统拒绝。请尝试切换安装方式或重启 App")
+					logger.error("自检", "诊断：无法连接本机服务器（端口 \(port)）——请确认已连接 Wi-Fi，然后重试")
 				case NSURLErrorTimedOut:
-					logger.error("自检", "诊断：连接超时——本机环回请求超时极不正常，请切换安装通道")
+					logger.error("自检", "诊断：连接超时——请确认已连接 Wi-Fi，并检查是否开启了 VPN/代理")
 				default:
 					break
 				}

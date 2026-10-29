@@ -9,7 +9,6 @@ import SwiftUI
 import NimbleViews
 import UIKit
 import Darwin
-import IDeviceSwift
 
 // MARK: - View
 struct SettingsView: View {

@@ -117,7 +117,11 @@ final class AppFileHandler: NSObject, @unchecked Sendable {
 			appIdentifier: bundle?.bundleIdentifier,
 			appVersion: bundle?.version,
 			appIcon: bundle?.iconFileName
-		) { _ in }
+		) { error in
+			if let error {
+				Logger.misc.error("[导入] 写入应用库失败: \(error.localizedDescription)")
+			}
+		}
 		
 	}
 	

@@ -6,8 +6,6 @@
 //
 
 import SwiftUI
-import Nuke
-import IDeviceSwift
 import OSLog
 import UIKit
 
@@ -93,7 +91,7 @@ struct geekIpaApp: App {
 				
 				return
 			}
-			/// feather://export-certificate?callback_template=<template>
+			/// geekipa://export-certificate?callback_template=<template>
 			/// ?callback_template=: This is how we callback to the application requesting the certificate, this will be a url scheme
 			/// 	example: livecontainer%3A%2F%2Fcertificate%3Fcert%3D%24%28BASE64_CERT%29%26password%3D%24%28PASSWORD%29
 			/// 	decoded: livecontainer://certificate?cert=$(BASE64_CERT)&password=$(PASSWORD)
@@ -110,7 +108,7 @@ struct geekIpaApp: App {
 				
 				FR.exportCertificateAndOpenUrl(using: callbackTemplate)
 			}
-			/// feather://install/<url.ipa>
+			/// geekipa://install/<url.ipa>
 			if
 				let fullPath = url.validatedScheme(after: "/install/"),
 				let downloadURL = URL(string: fullPath)
@@ -128,10 +126,27 @@ struct geekIpaApp: App {
 		} else {
 			if url.pathExtension == "ipa" || url.pathExtension == "tipa" {
 				if FileManager.default.isFileFromFileProvider(at: url) {
+					// 文件来自「文件」App / AirDrop：需要安全作用域授权，且必须成对释放，
+					// 否则系统对未释放的 URL 计数，累积后 startAccessing 会一直失败。
 					guard url.startAccessingSecurityScopedResource() else { return }
-					FR.handlePackageFile(url) { _ in }
+					FR.handlePackageFile(url) { error in
+						url.stopAccessingSecurityScopedResource()
+						if let error {
+							UIAlertController.showAlertWithOk(
+								title: .localized("Error"),
+								message: error.localizedDescription
+							)
+						}
+					}
 				} else {
-					FR.handlePackageFile(url) { _ in }
+					FR.handlePackageFile(url) { error in
+						if let error {
+							UIAlertController.showAlertWithOk(
+								title: .localized("Error"),
+								message: error.localizedDescription
+							)
+						}
+					}
 				}
 				
 				return
@@ -145,10 +160,8 @@ class AppDelegate: NSObject, UIApplicationDelegate {
 		_ application: UIApplication,
 		didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
 	) -> Bool {
-		_createPipeline()
 		_createDocumentsDirectories()
 		WorkCache.clearTemporary()
-		_addDefaultCertificates()
 		// 续签模块启动钩子（后台任务仅 iOS 设备）
 		#if !targetEnvironment(macCatalyst)
 		RenewalManager.registerBackgroundTasks()
@@ -162,28 +175,6 @@ class AppDelegate: NSObject, UIApplicationDelegate {
 		return true
 	}
 	
-	private func _createPipeline() {
-		DataLoader.sharedUrlCache.diskCapacity = 0
-		
-		let pipeline = ImagePipeline {
-			let dataLoader: DataLoader = {
-				let config = URLSessionConfiguration.default
-				config.urlCache = nil
-				return DataLoader(configuration: config)
-			}()
-			let dataCache = try? DataCache(name: "com.geekipa.ios.datacache") // disk cache
-			let imageCache = Nuke.ImageCache() // memory cache
-			dataCache?.sizeLimit = 500 * 1024 * 1024
-			imageCache.costLimit = 100 * 1024 * 1024
-			$0.dataCache = dataCache
-			$0.imageCache = imageCache
-			$0.dataLoader = dataLoader
-			$0.dataCachePolicy = .automatic
-			$0.isStoringPreviewsInMemoryCache = false
-		}
-		
-		ImagePipeline.shared = pipeline
-	}
 	
 	private func _createDocumentsDirectories() {
 		let fileManager = FileManager.default
@@ -200,55 +191,4 @@ class AppDelegate: NSObject, UIApplicationDelegate {
 		}
 	}
 	
-	private func _addDefaultCertificates() {
-		guard
-			UserDefaults.standard.bool(forKey: "geekIpa.didImportDefaultCertificates") == false,
-			let signingAssetsURL = Bundle.main.url(forResource: "signing-assets", withExtension: nil)
-		else {
-			return
-		}
-		
-		do {
-			let folderContents = try FileManager.default.contentsOfDirectory(
-				at: signingAssetsURL,
-				includingPropertiesForKeys: nil,
-				options: .skipsHiddenFiles
-			)
-			
-			for folderURL in folderContents {
-				guard folderURL.hasDirectoryPath else { continue }
-				
-				let certName = folderURL.lastPathComponent
-				
-				let p12Url = folderURL.appendingPathComponent("cert.p12")
-				let provisionUrl = folderURL.appendingPathComponent("cert.mobileprovision")
-				let passwordUrl = folderURL.appendingPathComponent("cert.txt")
-				
-				guard
-					FileManager.default.fileExists(atPath: p12Url.path),
-					FileManager.default.fileExists(atPath: provisionUrl.path),
-					FileManager.default.fileExists(atPath: passwordUrl.path)
-				else {
-					Logger.misc.warning("Skipping \(certName): missing required files")
-					continue
-				}
-				
-				let password = try String(contentsOf: passwordUrl, encoding: .utf8)
-				
-				FR.handleCertificateFiles(
-					p12URL: p12Url,
-					provisionURL: provisionUrl,
-					p12Password: password,
-					certificateName: certName,
-					isDefault: true
-				) { _ in
-					
-				}
-			}
-			UserDefaults.standard.set(true, forKey: "geekIpa.didImportDefaultCertificates")
-		} catch {
-			Logger.misc.error("Failed to list signing-assets: \(error)")
-		}
-	}
-
 }

@@ -1,6 +1,78 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "Ad-hoc" : {
+      "comment" : "Ad-hoc signing option",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ad-hoc"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自签（无证书）"
+          }
+        }
+      }
+    },
+    "Downloading" : {
+      "comment" : "Background download task subtitle",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Downloading"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在下载"
+          }
+        }
+      }
+    },
+    "Minimum OS" : {
+      "comment" : "Minimum iOS version label",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Minimum OS"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最低系统版本"
+          }
+        }
+      }
+    },
+    "Nickname" : {
+      "comment" : "Certificate nickname label",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nickname"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "备注名称"
+          }
+        }
+      }
+    },
     "%lld Apps" : {
       "comment" : "Repository app count",
       "extractionState" : "manual",
@@ -743,7 +815,7 @@
       }
     },
     "About %@" : {
-      "comment" : "About Feather",
+      "comment" : "About geekIpa",
       "extractionState" : "manual",
       "localizations" : {
         "ar" : {
@@ -1275,7 +1347,7 @@
         "cs" : {
           "stringUnit" : {
             "state" : "needs_review",
-            "value" : "Všechny soubory GeekSignu jsou ve složce Dokumenty, zde jsou na ně rychlé odkazy."
+            "value" : "Všechny soubory geekIpau jsou ve složce Dokumenty, zde jsou na ně rychlé odkazy."
           }
         },
         "de" : {
@@ -1293,7 +1365,7 @@
         "id" : {
           "stringUnit" : {
             "state" : "needs_review",
-            "value" : "Semua berkas GeekSign berada di direktori dokumen, berikut beberapa tautan cepat ke berkas-berkas tersebut."
+            "value" : "Semua berkas geekIpa berada di direktori dokumen, berikut beberapa tautan cepat ke berkas-berkas tersebut."
           }
         },
         "it" : {
@@ -1311,7 +1383,7 @@
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Wszystkie pliki GeekSign znajdują się w katalogu dokumentów, oto szybkie odnośniki do nich."
+            "value" : "Wszystkie pliki geekIpa znajdują się w katalogu dokumentów, oto szybkie odnośniki do nich."
           }
         },
         "tr" : {
@@ -1323,7 +1395,7 @@
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tất cả các file của GeekSign có thể được tìm thấy trong ứng dụng Tệp, đây là một số liên kết nhanh đến chúng."
+            "value" : "Tất cả các file của geekIpa có thể được tìm thấy trong ứng dụng Tệp, đây là một số liên kết nhanh đến chúng."
           }
         },
         "zh-Hans" : {
@@ -4913,7 +4985,7 @@
       }
     },
     "Enjoying %@?" : {
-      "comment" : "Enjoying Feather?",
+      "comment" : "Enjoying geekIpa?",
       "extractionState" : "manual",
       "localizations" : {
         "ar" : {

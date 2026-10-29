@@ -1,12 +1,13 @@
 NAME := geekIpa
 SCHEME := geekIpa
-PLATFORMS := iphoneos maccatalyst
+PLATFORMS := iphoneos
+CATALYST := maccatalyst
 
 TMP := $(TMPDIR)/$(NAME)
-CERT_JSON_URL := https://backloop.dev/pack.json
 
-.PHONY: all clean deps $(PLATFORMS)
+.PHONY: all clean $(PLATFORMS) $(CATALYST)
 
+# 默认只出 iOS 产物（Catalyst 见 make maccatalyst）
 all: $(PLATFORMS)
 
 clean:
@@ -14,31 +15,15 @@ clean:
 	rm -rf packages
 	rm -rf Payload
 
-deps:
-	rm -rf deps || true
-	mkdir -p deps
-
-	# 服务器 TLS 证书来自第三方服务，挂了就跳过（App 内自检会在安装时明确提示，不静默失败）
-	curl -fsSL --max-time 30 --retry 2 "$(CERT_JSON_URL)" -o cert.json \
-		&& jq -r '.cert' cert.json > deps/server.crt \
-		&& jq -r '.key1, .key2' cert.json > deps/server.pem \
-		&& jq -r '.info.domains.commonName' cert.json > deps/commonName.txt \
-		|| echo "::warning::证书服务不可用，跳过 TLS 证书注入（itms 默认安装通道将不可用，配对文件通道不受影响）"
-
-
-$(PLATFORMS): deps
+# iOS 设备包：需要 macOS + Xcode
+iphoneos:
 	rm -rf _build
 
-	@if [ "$@" = "iphoneos" ]; then \
-		DEST="generic/platform=iOS"; \
-	else \
-		DEST="generic/platform=macOS,variant=Mac Catalyst"; \
-	fi; \
 	xcodebuild \
 		-project geekIpa.xcodeproj \
 		-scheme $(SCHEME) \
 		-configuration Release \
-		-destination "$$DEST" \
+		-destination "generic/platform=iOS" \
 		-derivedDataPath $(TMP)/$@ \
 		-skipPackagePluginValidation \
 		CODE_SIGNING_ALLOWED=NO \
@@ -48,12 +33,30 @@ $(PLATFORMS): deps
 	cp -R _build/Applications/*.app _build/Payload/geekIpa.app
 	chmod -R 0755 _build/Payload/geekIpa.app
 	codesign --force --sign - --timestamp=none _build/Payload/geekIpa.app
-	cp deps/* _build/Payload/geekIpa.app/ || true
 
 	mkdir -p packages
+	ditto -c -k --sequesterRsrc --keepParent _build/Payload "packages/geekIpa.ipa"
+	@echo "产物: packages/geekIpa.ipa"
 
-	@if [ "$@" = "iphoneos" ]; then \
-		ditto -c -k --sequesterRsrc --keepParent _build/Payload "packages/geekIpa.ipa"; \
-	else \
-		ditto -c -k --sequesterRsrc --keepParent _build/Payload/geekIpa.app "packages/geekIpa_Catalyst.zip"; \
-	fi
+# 可选：Mac Catalyst 桌面版
+maccatalyst:
+	rm -rf _build
+
+	xcodebuild \
+		-project geekIpa.xcodeproj \
+		-scheme $(SCHEME) \
+		-configuration Release \
+		-destination "generic/platform=macOS,variant=Mac Catalyst" \
+		-derivedDataPath $(TMP)/$@ \
+		-skipPackagePluginValidation \
+		CODE_SIGNING_ALLOWED=NO \
+		ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES=NO
+
+	mkdir -p packages
+	ditto -c -k --sequesterRsrc --keepParent _build/Applications/geekIpa.app "packages/geekIpa_Catalyst.zip"
+	@echo "产物: packages/geekIpa_Catalyst.zip"
+
+# 说明：
+#  · 安装走局域网 HTTP（自研 LocalHTTPServer），已不再需要 TLS 证书，
+#    因此本文件不下载任何证书，也不往 App 包里塞证书文件。
+#  · 云构建见 .github/workflows/build.yml；本 Makefile 仅供本地有 Mac 时使用。

@@ -14,7 +14,6 @@ import UIKit
 import Darwin
 import Network
 import CoreData
-import IDeviceSwift
 
 // CONTRACT: 公共契约 —— Tab 框架直接引用
 struct DeviceView: View {

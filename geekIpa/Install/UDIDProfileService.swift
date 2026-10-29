@@ -13,7 +13,6 @@
 
 import Foundation
 import SwiftUI
-import Vapor
 
 final class UDIDProfileService: ObservableObject {
 
@@ -26,7 +25,7 @@ final class UDIDProfileService: ObservableObject {
 	@Published private(set) var receivedVersion: String?
 	@Published private(set) var lastCallbackHadNoUDID = false
 
-	private var _server: Application?
+	private var _server: LocalHTTPServer?
 	private(set) var port: Int = 0
 
 	private init() {}
@@ -37,15 +36,11 @@ final class UDIDProfileService: ObservableObject {
 		stop()
 
 		let candidatePort = Int.random(in: 4000...8000)
-		let app = Application(ServerInstaller.env)
-		app.http.server.configuration.hostname = "0.0.0.0"
-		app.http.server.configuration.port = candidatePort
-		app.routes.defaultMaxBodySize = "2mb"
+		let server = LocalHTTPServer(port: candidatePort)
+		_registerRoutes(on: server)
+		try server.start()
 
-		_registerRoutes(on: app)
-		try app.server.start()
-
-		_server = app
+		_server = server
 		port = candidatePort
 		isRunning = true
 
@@ -59,36 +54,35 @@ final class UDIDProfileService: ObservableObject {
 		guard let server = _server else { return }
 		_server = nil
 		isRunning = false
-		server.server.shutdown()
-		server.shutdown()
+		server.stop()
 	}
 
 	// MARK: - 路由
 
-	private func _registerRoutes(on app: Application) {
-		app.get { [weak self] _ in
-			guard let self else { return Response(status: .notFound) }
-			return Response(status: .ok,
-							headers: ["Content-Type": "text/html; charset=utf-8"],
-							body: .init(string: self._landingHTML()))
-		}
+	private func _registerRoutes(on server: LocalHTTPServer) {
+		server.route { [weak self] req in
+			guard let self else { return .status(404) }
 
-		app.get("udid.mobileconfig") { [weak self] _ in
-			guard let self else { return Response(status: .notFound) }
-			return Response(status: .ok,
-							headers: [
-								"Content-Type": "application/x-apple-aspen-config",
-								"Content-Disposition": "attachment; filename=\"geekIpa-udid.mobileconfig\""
-							],
-							body: .init(string: self._profileXML()))
-		}
+			switch req.path {
+			case "/":
+				return .html(self._landingHTML())
 
-		app.post("udid-callback") { [weak self] req in
-			guard let self else { return Response(status: .ok) }
-			self._handleCallback(req.body.string ?? "")
-			return Response(status: .ok,
-							headers: ["Content-Type": "text/html; charset=utf-8"],
-							body: .init(string: self._doneHTML()))
+			case "/udid.mobileconfig":
+				return .data(
+					Data(self._profileXML().utf8),
+					contentType: "application/x-apple-aspen-config",
+					status: 200,
+					extraHeaders: ["Content-Disposition": "attachment; filename=\"geekIpa-udid.mobileconfig\""]
+				)
+
+			case "/udid-callback":
+				let body = String(data: req.body, encoding: .utf8) ?? ""
+				self._handleCallback(body)
+				return .html(self._doneHTML())
+
+			default:
+				return .status(404)
+			}
 		}
 	}
 

@@ -13,7 +13,7 @@ import UIKit.UIGraphicsImageRenderer
 extension ServerInstaller {
 	var plistEndpoint: URL {
 		var comps = URLComponents()
-		comps.scheme = self.getServerMethod() == 1 ? "http" : "https"
+		comps.scheme = "http"
 		comps.host = sni()
 		comps.path = "/\(id).plist"
 		comps.port = port
@@ -22,7 +22,7 @@ extension ServerInstaller {
 
 	var payloadEndpoint: URL {
 		var comps = URLComponents()
-		comps.scheme = self.getServerMethod() == 1 ? "http" : "https"
+		comps.scheme = "http"
 		comps.host = sni()
 		comps.path = "/\(id).ipa"
 		comps.port = port
@@ -31,27 +31,15 @@ extension ServerInstaller {
 	
 	var pageEndpoint: URL {
 		var comps = URLComponents()
-		comps.scheme = self.getServerMethod() == 1 ? "http" : "https"
+		comps.scheme = "http"
 		comps.host = sni()
 		comps.path = "/install"
 		comps.port = port
 		return comps.url!
 	}
 	
-	var externalServerLink: String {
-		let baseUrl = "https://api.palera.in/genPlist?bundleid=\(app.identifier!)&name=\(app.name!)&version=\(app.version!)&fetchurl=\(self.payloadEndpoint.absoluteString)"
-		let encodedBaseUrl = baseUrl.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed)!
-		let finalEncodedUrl = encodedBaseUrl.addingPercentEncoding(withAllowedCharacters: .alphanumerics)!
-		
-		return finalEncodedUrl
-	}
-
 	var iTunesLink: String {
 		_iTunesLink(with: plistEndpoint.absoluteString)
-	}
-	
-	var iTunesLinkExternal: String {
-		_iTunesLink(with: externalServerLink)
 	}
 	
 	private func _iTunesLink(with url: String) -> String {
@@ -60,7 +48,7 @@ extension ServerInstaller {
 
 	var displayImageSmallEndpoint: URL {
 		var comps = URLComponents()
-		comps.scheme = "https"
+		comps.scheme = "http"
 		comps.host = sni()
 		comps.path = "/app57x57.png"
 		comps.port = port
@@ -69,7 +57,7 @@ extension ServerInstaller {
 
 	var displayImageLargeEndpoint: URL {
 		var comps = URLComponents()
-		comps.scheme = "https"
+		comps.scheme = "http"
 		comps.host = sni()
 		comps.path = "/app512x512.png"
 		comps.port = port
@@ -90,7 +78,7 @@ extension ServerInstaller {
 			UIColor.tintColor.setFill()
 			ctx.fill(.init(x: 0, y: 0, width: r, height: r))
 		}
-		return image.pngData()!
+		return image.pngData() ?? Data()
 	}
 
 	var html: String {
