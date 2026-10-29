@@ -33,11 +33,23 @@
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
+
+/* Begin PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet section */
+		33CF134C2DB5B9BC0021D4C5 /* Exceptions for "geekIpa" folder in "Frameworks" phase from "geekIpa" target */ = {
+			isa = PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet;
+			buildPhase = 3379C1B62DA869A1004372DA /* Frameworks */;
+			membershipExceptions = (
+				Resources/ellekit.deb,
+			);
+		};
+/* End PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		3379C1BB2DA869A1004372DA /* geekIpa */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
 				3371F6492DA92A1800281AC6 /* Exceptions for "geekIpa" folder in "geekIpa" target */,
+				33CF134C2DB5B9BC0021D4C5 /* Exceptions for "geekIpa" folder in "Frameworks" phase from "geekIpa" target */,
 			);
 			path = geekIpa;
 			sourceTree = "<group>";
@@ -357,8 +369,6 @@
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				LIBRARY_SEARCH_PATHS = (
 					"$(inherited)",
-					"$(PROJECT_DIR)/geekIpa/Resources",
-					"$(PROJECT_DIR)/geekIpa/Resources/idevice",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.2;
 				MARKETING_VERSION = "$(GEEKIPA_PROJECT_VERSION)-debug";
@@ -422,8 +432,6 @@
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				LIBRARY_SEARCH_PATHS = (
 					"$(inherited)",
-					"$(PROJECT_DIR)/geekIpa/Resources",
-					"$(PROJECT_DIR)/geekIpa/Resources/idevice",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.2;
 				MARKETING_VERSION = "$(GEEKIPA_PROJECT_VERSION)";

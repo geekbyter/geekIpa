@@ -197,24 +197,55 @@ def main() -> int:
                 check(f"model contents exists: {inner_dir.name}",
                           (inner_dir / "contents").exists())
 
-    # ---- 资源必须真的进 App 包 ----
-    # ellekit.deb 由 TweakHandler 在运行时从 Bundle.main 读取，
-    # 若被同步组排除（membershipExceptions），插件注入会静默失效。
-    for m in re.finditer(r"membershipExceptions = \(([\s\S]*?)\);", pbx):
-        entries = [e.strip().rstrip(',') for e in m.group(1).splitlines() if e.strip()]
-        for need in ["Resources/ellekit.deb"]:
-            check(f"{need} 未被排除出 App 包", need not in entries,
-                  "被 membershipExceptions 排除，运行时 Bundle.main 取不到")
+    # ---- 资源打包 / 链接成员规则（按 build phase 精确判断） ----
+    #
+    # ellekit.deb 有两个互相冲突的要求：
+    #   1) 必须进 App 包  → 不能被 target / Resources 阶段排除
+    #   2) 不能被链接     → .deb 是 archive 类型，被推断进 Frameworks 阶段会导致
+    #                        ld: archive member 'debian-binary' not a mach-o file
+    # 所以正确配置是：Frameworks 阶段排除它，其它阶段都保留。
+    def _exception_sets():
+        """返回 [(phase 描述, set(排除条目))]"""
+        out = []
+        # 目标级例外集（属于哪个 target）
+        for m in re.finditer(
+                r'isa = PBXFileSystemSynchronizedBuildFileExceptionSet;([\s\S]*?)\t\t\};', pbx):
+            entries = {e.strip().rstrip(',') for e in
+                       re.search(r'membershipExceptions = \(([\s\S]*?)\);', m.group(1)).group(1).splitlines()
+                       if e.strip()}
+            out.append(('target', entries))
+        # 具体 build phase 级例外集
+        for m in re.finditer(
+                r'buildPhase = [0-9A-F]{24} /\* ([A-Za-z ]+) \*/;\s*'
+                r'membershipExceptions = \(([\s\S]*?)\);', pbx):
+            phase = m.group(1).strip()
+            entries = {e.strip().rstrip(',') for e in m.group(2).splitlines() if e.strip()}
+            out.append((phase, entries))
+        return out
 
-    # ---- 代码引用的 Bundle 资源必须存在且未被排除 ----
+    sets = _exception_sets()
+    deb = "Resources/ellekit.deb"
+
+    target_excluded = any(phase == 'target' and deb in entries for phase, entries in sets)
+    resources_excluded = any(phase == 'Resources' and deb in entries for phase, entries in sets)
+    frameworks_excluded = any(phase == 'Frameworks' and deb in entries for phase, entries in sets)
+
+    check("ellekit.deb 属于目标（会打包进 .app）", not target_excluded,
+          "被 target 级 membershipExceptions 排除，Bundle.main 取不到")
+    check("ellekit.deb 未被排除出 Resources 阶段", not resources_excluded,
+          "被 Resources 阶段排除，Bundle.main 取不到")
+    check("ellekit.deb 已排除出 Frameworks 阶段（否则 .deb 会被当静态库链接）",
+          frameworks_excluded,
+          "需要在同步组加一个 buildPhase = Frameworks 的例外集，否则链接报 "
+          "archive member 'debian-binary' not a mach-o file")
+
+    # 旧的 LIBRARY_SEARCH_PATHS 指向已删除的 libimobiledevice 目录，会让 ld 去扫资源目录
+    check("LIBRARY_SEARCH_PATHS 不再指向 Resources 目录",
+          "$(PROJECT_DIR)/geekIpa/Resources" not in pbx,
+          "残留的 -L 路径会让 ld 扫描资源目录（含 ellkit.deb）")
+
+    # ---- 代码引用的 Bundle 资源必须存在 ----
     swift_files = list(APP.rglob("*.swift"))
-    excluded_entries = set()
-    for m in re.finditer(r"membershipExceptions = \(([\s\S]*?)\);", pbx):
-        for line in m.group(1).splitlines():
-            entry = line.strip().rstrip(",")
-            if entry:
-                excluded_entries.add(entry)
-
     resource_refs = set()
     for path in swift_files:
         text = read(path)
@@ -228,10 +259,6 @@ def main() -> int:
         hits = [p for p in APP.rglob(fname)]
         where = path.relative_to(ROOT).as_posix()
         check(f"Bundle 资源存在: {fname}", bool(hits), f"{where} 引用了它")
-        if hits:
-            rel = hits[0].relative_to(APP).as_posix()
-            check(f"Bundle 资源未被排除: {fname}", rel not in excluded_entries,
-                  f"被 membershipExceptions 排除，运行时取不到")
 
     # ---- Info.plist + entitlements ----
     plist_path = APP / "Resources" / "Info.plist"
