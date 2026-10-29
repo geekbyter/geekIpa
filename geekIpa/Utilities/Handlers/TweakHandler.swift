@@ -33,14 +33,30 @@ class TweakHandler {
 		let frameworksPath = _app.appendingPathComponent("Frameworks").appendingPathComponent("CydiaSubstrate.framework")
 
 		func addEllekit() async throws {
-			if let ellekitURL = Bundle.main.url(forResource: "ellekit", withExtension: "deb") {
-				self._urls.insert(ellekitURL, at: 0)
-			} else {
-				Logger.misc.info("ellekit.deb not found in the app bundle")
-			}
-			
-			try _fileManager.createDirectoryIfNeeded(at: _app.appendingPathComponent("Frameworks"))
+		// 资源以 .bin 打包（避免 .deb 被 Xcode 当成静态库传入链接器）；
+		// 这里复制成临时 .deb 再交给解析器，因为下游按 pathExtension 分发。
+		guard let bundled = Bundle.main.url(forResource: "ellekit", withExtension: "bin") else {
+			Logger.misc.info("ellekit resource not found in the app bundle")
+			return
 		}
+
+		var url = bundled
+		if bundled.pathExtension.lowercased() != "deb" {
+			let target = FileManager.default.temporaryDirectory
+				.appendingPathComponent("ellekit-\(UUID().uuidString).deb")
+			try? FileManager.default.removeItem(at: target)
+			do {
+				try FileManager.default.copyItem(at: bundled, to: target)
+				url = target
+			} catch {
+				Logger.misc.error("ellekit 资源落地失败: \(error.localizedDescription)")
+				return
+			}
+		}
+
+		self._urls.insert(url, at: 0)
+	}
+
 		// we should check if CydiaSubstrate.framework exists, if it doesn't
 		// just add ellekit
 		// experiment_replaceSubstrateWithEllekit:
