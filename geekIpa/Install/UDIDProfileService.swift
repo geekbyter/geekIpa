@@ -119,8 +119,11 @@ final class UDIDProfileService: ObservableObject {
 
 			case "/udid-callback":
 				let body = String(data: req.body, encoding: .utf8) ?? ""
-				self._handleCallback(body)
-			self._endBackgroundTask()
+				// 服务器队列到达：@Published 更新与 UIKit 调用都必须在主线程
+				DispatchQueue.main.async {
+					self._handleCallback(body)
+					self._endBackgroundTask()
+				}
 				return .html(self._doneHTML())
 
 			default:

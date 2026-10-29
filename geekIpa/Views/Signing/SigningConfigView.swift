@@ -34,23 +34,16 @@ struct SigningConfigView: View {
 	@State private var _showReplaceFilesAlert = false
 	@State private var _injectionErrorMessage: String? = nil
 
-	@State private var _navTarget: _NavTarget?
+	@State private var _showNav = false
+	@State private var _navKind: _NavKind = .signing
 
-	private enum _NavTarget: Identifiable {
+	private enum _NavKind {
 		case certPicker, signing
-		var id: Int {
-			switch self {
-			case .certPicker: return 0
-			case .signing: return 1
-			}
-		}
 	}
 
 	// 修改图标（问题 1：从本地相册选择并校验）
-	@State private var _iconPickerItem: PhotosPickerItem?
 	@State private var _showIconPickerSheet = false
 	@State private var _iconErrorMessage: String?
-	@State private var _isApplyingIcon = false
 
 	let app: AppInfoPresentable
 	/// 完成后整流退出（由应用页注入，用于整栈弹回列表）
@@ -160,12 +153,12 @@ struct SigningConfigView: View {
 			)
 			.ignoresSafeArea()
 		}
-		// 单个 navigationDestination(item:)：iOS 16 上叠放多个 isPresented 版只有第一个会触发。
-		// 注意：item 绑定在返回后不会自动置 nil，必须在 destination 消失时手动复位，
-		// 否则返回后再次点击同一入口不会重新导航。
-		.navigationDestination(item: $_navTarget) { target in
+		// 只保留一个 navigationDestination(isPresented:)，用 _navKind 区分目标页：
+		// iOS 16 上同视图叠放多个 isPresented 版只有第一个会触发（这就是原来签名跳不动的根因）。
+		// isPresented 绑定在返回后不会自动复位，必须手动复位，否则第二次点同一入口不触发。
+		.navigationDestination(isPresented: $_showNav) {
 			Group {
-				switch target {
+				switch _navKind {
 				case .certPicker:
 					CertificatesView(selectedCert: $_temporaryCertificate)
 				case .signing:
@@ -178,7 +171,7 @@ struct SigningConfigView: View {
 					)
 				}
 			}
-			.onDisappear { _navTarget = nil }
+			.onDisappear { _showNav = false }
 		}
 		.onAppear {
 			// 已有注入文件（高级页加的）时同步开关态
@@ -312,7 +305,7 @@ extension SigningConfigView {
 	private var _signingSection: some View {
 		Section {
 			Button {
-				_navTarget = .certPicker
+				_navKind = .certPicker; _showNav = true
 			} label: {
 				HStack(spacing: 8) {
 					Text("证书选择")
@@ -441,39 +434,13 @@ extension SigningConfigView {
 				.tint(.geekPrimary)
 			}
 
-			if _isApplyingIcon {
-				ProgressView()
-					.controlSize(.small)
-			}
 
 			Text("要求：正方形，边长 ≥120px（推荐 1024×1024），PNG / JPEG。")
 				.font(.caption2)
 				.foregroundStyle(.tertiary)
 		}
 		.sheet(isPresented: $_showIconPickerSheet) {
-			_PhotosPickerSheet(item: $_iconPickerItem)
-		}
-		.onChange(of: _iconPickerItem) { newItem in
-			guard let newItem else { return }
-			_loadIcon(from: newItem)
-		}
-	}
-
-	/// 从相册读取并校验图标
-	private func _loadIcon(from item: PhotosPickerItem) {
-		_isApplyingIcon = true
-		Task {
-			defer { DispatchQueue.main.async { _isApplyingIcon = false } }
-			guard
-				let data = try? await item.loadTransferable(type: Data.self),
-				let image = UIImage(data: data)
-			else {
-				DispatchQueue.main.async {
-					_iconErrorMessage = "无法读取这张图片，请选择 PNG 或 JPEG 格式的图片。"
-				}
-				return
-			}
-			DispatchQueue.main.async {
+			_PhotosPickerSheet { image in
 				_applyIcon(image)
 			}
 		}
@@ -487,19 +454,16 @@ extension SigningConfigView {
 
 		guard minSide >= 120 else {
 			_iconErrorMessage = "图片尺寸过小（当前 \(Int(pixelWidth))×\(Int(pixelHeight))），边长需 ≥120px，推荐 1024×1024。"
-			_iconPickerItem = nil
 			return
 		}
 
 		let ratio = max(pixelWidth, pixelHeight) / max(minSide, 1)
 		guard ratio <= 1.05 else {
 			_iconErrorMessage = "请选择正方形图片（当前 \(Int(pixelWidth))×\(Int(pixelHeight))），推荐 1024×1024。"
-			_iconPickerItem = nil
 			return
 		}
 
 		_appIcon = _squareIcon(from: image)
-		_iconPickerItem = nil
 		GeekToast.show("图标已应用")
 	}
 
@@ -711,7 +675,7 @@ extension SigningConfigView {
 			if _selectedCert() == nil {
 				// 未选证书引导，可点击跳证书选择页
 				Button {
-					_navTarget = .certPicker
+					_navKind = .certPicker; _showNav = true
 				} label: {
 					Text("请先选择证书")
 						.font(.footnote)
@@ -739,7 +703,7 @@ extension SigningConfigView {
 				.frame(minHeight: 44)
 
 				Button {
-					_navTarget = .signing
+					_navKind = .signing; _showNav = true
 				} label: {
 					Text(_injectionEnabled ? "注入并签名" : "开始签名")
 						.font(.body.weight(.semibold))
@@ -991,9 +955,9 @@ private enum _InjectionFileValidator {
 // 避免 SwiftUI PhotosPicker 在 Form/DisclosureGroup 里偶发的主线程卡顿：
 // 直接用 PHPickerViewController，行为与系统 PhotosPicker 一致。
 private struct _PhotosPickerSheet: UIViewControllerRepresentable {
-	@Binding var item: PhotosPickerItem?
+	var onImage: (UIImage) -> Void
 
-	func makeCoordinator() -> Coordinator { Coordinator(item: $item) }
+	func makeCoordinator() -> Coordinator { Coordinator(onImage: onImage) }
 
 	func makeUIViewController(context: Context) -> PHPickerViewController {
 		var config = PHPickerConfiguration()
@@ -1007,13 +971,17 @@ private struct _PhotosPickerSheet: UIViewControllerRepresentable {
 	func updateUIViewController(_ uiViewController: PHPickerViewController, context: Context) {}
 
 	final class Coordinator: NSObject, PHPickerViewControllerDelegate {
-		let item: Binding<PhotosPickerItem?>
-		init(item: Binding<PhotosPickerItem?>) { self.item = item }
+		let onImage: (UIImage) -> Void
+		init(onImage: @escaping (UIImage) -> Void) { self.onImage = onImage }
 
 		func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
 			picker.dismiss(animated: true)
-			guard let provider = results.first?.itemProvider else { return }
-			item.wrappedValue = PhotosPickerItem(itemProvider: provider)
+			guard let provider = results.first?.itemProvider,
+				  provider.canLoadObject(ofClass: UIImage.self) else { return }
+			provider.loadObject(ofClass: UIImage.self) { object, _ in
+				guard let image = object as? UIImage else { return }
+				DispatchQueue.main.async { self.onImage(image) }
+			}
 		}
 	}
 }

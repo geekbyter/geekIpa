@@ -145,7 +145,7 @@ struct UDIDAcquireView: View {
 				UDIDProfileService.shared.beginBackgroundTask()
 				await MainActor.run { _isStarting = false }
 				if let profileURL = URL(string: "http://127.0.0.1:\(UDIDProfileService.shared.port)/udid.mobileconfig") {
-					UIApplication.shared.open(profileURL)
+					UIApplication.shared.open(profileURL, options: [:], completionHandler: nil)
 				}
 			} catch {
 				await MainActor.run {
